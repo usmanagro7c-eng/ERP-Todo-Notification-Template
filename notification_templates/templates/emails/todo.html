@@ -1,0 +1,63 @@
+<div style="background: {{ report_color or '#eef6ff' }}; border-left: 5px solid #2d95f0; padding: 12px 14px; margin: 0 0 16px 0; border-radius: 6px; font-weight: 700; font-size: 16px; color: #1f2937;">
+	{{ report_title or _('Following Todos require attention') }}
+</div>
+{% if todo_list %}
+<table style="width: 1200px; max-width: 100%; border-collapse: collapse; font-family: Arial, sans-serif; font-size: 12px; line-height: 1.6; border: 1px solid #dfe3e8; table-layout: fixed; min-width: 1050px;">
+	<thead>
+		<tr style="background: #f5f7fa;">
+			<th style="padding: 14px 12px; border: 1px solid #dfe3e8; text-align: left; width: 9%; word-wrap: break-word;">{{ _("ToDo") }}</th>
+			<th style="padding: 14px 12px; border: 1px solid #dfe3e8; text-align: left; width: 22%; word-wrap: break-word;">{{ _("Description") }}</th>
+			<th style="padding: 14px 12px; border: 1px solid #dfe3e8; text-align: left; width: 10%; word-wrap: break-word;">{{ _("Status") }}</th>
+			<th style="padding: 14px 12px; border: 1px solid #dfe3e8; text-align: left; width: 10%; word-wrap: break-word;">{{ _("Priority") }}</th>
+			<th style="padding: 14px 12px; border: 1px solid #dfe3e8; text-align: left; width: 12%; word-wrap: break-word;">{{ _("Allocated To") }}</th>
+			<th style="padding: 14px 12px; border: 1px solid #dfe3e8; text-align: left; width: 12%; word-wrap: break-word;">{{ _("Assigned By") }}</th>
+			<th style="padding: 14px 12px; border: 1px solid #dfe3e8; text-align: left; width: 11%; word-wrap: break-word;">{{ _("Due Date") }}</th>
+			<th style="padding: 14px 12px; border: 1px solid #dfe3e8; text-align: left; width: 18%; word-wrap: break-word;">{{ _("Reference") }}</th>
+			<th style="padding: 14px 12px; border: 1px solid #dfe3e8; text-align: left; width: 10%; word-wrap: break-word;">{{ _("Tags") }}</th>
+		</tr>
+	</thead>
+	<tbody>
+	{% for todo in todo_list -%}
+		<tr style="vertical-align: top;">
+			<td style="padding: 12px; border: 1px solid #dfe3e8; vertical-align: top; word-wrap: break-word;">
+				{{ frappe.utils.get_link_to_form("ToDo", todo.name) }}
+			</td>
+			<td style="padding: 12px; border: 1px solid #dfe3e8; vertical-align: top; word-wrap: break-word;">{{ todo.description or "-" }}</td>
+			<td style="padding: 12px; border: 1px solid #dfe3e8; vertical-align: top; word-wrap: break-word;">
+				{% if todo.status == "Overdue" -%}
+					<span style="background: #ffebee; color: #c62828; padding: 3px 7px; border-radius: 3px; display: inline-block;">{{ todo.status }}</span>
+				{%- elif todo.status == "Completed" -%}
+					<span style="background: #e8f5e9; color: #2e7d32; padding: 3px 7px; border-radius: 3px; display: inline-block;">{{ todo.status }}</span>
+				{%- else -%}
+					{{ todo.status or "-" }}
+				{%- endif %}
+			</td>
+			<td style="padding: 12px; border: 1px solid #dfe3e8; vertical-align: top; word-wrap: break-word;">
+				{% if todo.priority == "High" -%}
+					<span style="background: #ffebee; color: #c62828; padding: 3px 7px; border-radius: 3px; display: inline-block;">{{ todo.priority }}</span>
+				{%- elif todo.priority == "Urgent" -%}
+					<span style="background: #fce4ec; color: #ad1457; padding: 3px 7px; border-radius: 3px; display: inline-block;">{{ todo.priority }}</span>
+				{%- elif todo.priority == "Medium" -%}
+					<span style="background: #fff8e1; color: #ff6f00; padding: 3px 7px; border-radius: 3px; display: inline-block;">{{ todo.priority }}</span>
+				{%- else -%}
+					<span style="background: #e3f2fd; color: #1565c0; padding: 3px 7px; border-radius: 3px; display: inline-block;">{{ todo.priority or "-" }}</span>
+				{%- endif %}
+			</td>
+			<td style="padding: 12px; border: 1px solid #dfe3e8; vertical-align: top; word-wrap: break-word;">{{ todo.allocated_to or "-" }}</td>
+			<td style="padding: 12px; border: 1px solid #dfe3e8; vertical-align: top; word-wrap: break-word;">{{ todo.assigned_by or "-" }}</td>
+			<td style="padding: 12px; border: 1px solid #dfe3e8; vertical-align: top; word-wrap: break-word;">{{ todo.date or "-" }}</td>
+			<td style="padding: 12px; border: 1px solid #dfe3e8; vertical-align: top; word-wrap: break-word;">
+				{% if todo.reference_name and todo.reference_type -%}
+					{{ frappe.utils.get_link_to_form(todo.reference_type, todo.reference_name) }}
+				{%- else -%}
+					-
+				{%- endif %}
+			</td>
+			<td style="padding: 12px; border: 1px solid #dfe3e8; vertical-align: top; word-wrap: break-word;">{{ todo._user_tags or "-" }}</td>
+		</tr>
+	{%- endfor %}
+	</tbody>
+</table>
+{% else %}
+<p>{{ _("No todos found.") }}</p>
+{% endif %}
