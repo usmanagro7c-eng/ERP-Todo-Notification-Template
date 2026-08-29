@@ -79,6 +79,13 @@ Configured linters & tools:
 
 ---
 
+## 👥 Contributors
+
+- [MaAn-41](https://github.com/MaAn-41)
+- [Tariquaf](https://github.com/Tariquaf)
+
+---
+
 ## 📄 License
 
 [MIT](LICENSE)
