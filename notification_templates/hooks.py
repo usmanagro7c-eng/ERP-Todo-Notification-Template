@@ -149,23 +149,16 @@ app_license = "mit"
 # Scheduled Tasks
 # ---------------
 
-# scheduler_events = {
-# 	"all": [
-# 		"notification_templates.tasks.all"
-# 	],
-# 	"daily": [
-# 		"notification_templates.tasks.daily"
-# 	],
-# 	"hourly": [
-# 		"notification_templates.tasks.hourly"
-# 	],
-# 	"weekly": [
-# 		"notification_templates.tasks.weekly"
-# 	],
-# 	"monthly": [
-# 		"notification_templates.tasks.monthly"
-# 	],
-# }
+scheduler_events = {
+	"cron": {
+		"*/5 * * * *": [
+			"notification_templates.tasks.send_daily_todo_report",
+		],
+		"0 */2 * * *": [
+			"notification_templates.tasks.send_overdue_todo_report",
+		]
+	},
+}
 
 # Testing
 # -------
