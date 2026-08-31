@@ -16,10 +16,11 @@ def _get_time_parts(value):
 	if hasattr(value, "hour") and hasattr(value, "minute"):
 		return value.hour, value.minute
 
-	if isinstance(value, str):
-		return int(value[:2]), int(value[3:5])
-
-	return 0, 0
+	try:
+		parts = str(value).strip().split(":")
+		return int(parts[0]), int(parts[1])
+	except Exception:
+		return 0, 0
 
 
 def _normalize_template_name(template_name):
@@ -78,9 +79,12 @@ def send_daily_todo_report():
 	hour, minute = _get_time_parts(send_time)
 	target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
 
-	last_run = frappe.db.get_single_value("Todo Notification Setting", "last_run")
-	if last_run and last_run.date() == now.date() and last_run >= target:
-		return
+	raw_last_run = frappe.db.get_single_value("Todo Notification Setting", "last_run")
+	if raw_last_run:
+		last_run = frappe.utils.get_datetime(raw_last_run)
+		if frappe.utils.getdate(last_run) == frappe.utils.getdate(now) and last_run >= target:
+			return
+
 	if now < target:
 		return
 
