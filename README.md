@@ -1,26 +1,30 @@
 # Notification Templates
 
-A Frappe / ERPNext application for sending scheduled and custom email notifications and task summaries, including daily ToDo reports and overdue task alerts.
+A Frappe / ERPNext application for sending scheduled email notifications, including daily ToDo reports and overdue task alerts.
 
 ---
 
-## 🚀 Features
+## Features
 
-- 📬 **Daily ToDo Digest**: Automatically aggregates all open ToDo items assigned to each user and dispatches a clean, formatted email summary once a day.
-- ⏰ **Overdue Tasks Alert**: Periodically checks for overdue tasks and sends alert notifications to assignees.
-- ⚙️ **Configurable Settings DocType (`Todo Notification Setting`)**:
-  - **Enable / Disable**: Easily turn automated notifications on or off.
-  - **Send Time**: Configure the exact time of day for the daily report to be sent.
-  - **Template Selection**: Choose and customize email templates.
-  - **Duplicate Prevention**: Tracks execution timestamps to ensure users receive reports on time without duplicates.
-- 🎨 **Rich HTML Email Template**:
+- **Daily ToDo Digest**: Aggregates all open ToDo items assigned to each user and dispatches a formatted email summary once a day at a configured exact time.
+- **Overdue Tasks Alert**: Two independent triggers for overdue notifications:
+  - **Fixed Send Time**: Send once daily at an exact time (e.g. `10:00`).
+  - **Repeat Interval**: Send repeatedly every X hours (e.g. `01:00` = every 1 hour, `06:00` = every 6 hours).
+  - Both can be enabled together; each runs independently.
+- **Configurable Settings DocType (`Custom Notification Templates`)**:
+  - Enable / disable notifications for daily and overdue separately.
+  - Exact send time for daily report.
+  - Exact send time and repeat interval for overdue alerts.
+  - **Dynamic Template Selection**: dropdown reads all templates available in `templates/emails/` automatically - drop a new `.html` file in that folder and it appears in the dropdown without any schema change.
+  - **Duplicate Prevention**: tracks execution timestamps so emails are never sent twice for the same trigger window.
+- **Rich HTML Email Template**:
   - Direct clickable links to Frappe ToDo records and reference documents.
   - Color-coded badges for task **Status** (Overdue, Open, Completed) and **Priority** (Urgent, High, Medium, Low).
-  - Clean table layout with task descriptions, assigners, due dates, and tags.
+  - Clean table layout with task descriptions, assigners, due dates, and references.
 
 ---
 
-## 📦 Installation
+## Installation
 
 Install this app into your Frappe Bench:
 
@@ -39,30 +43,47 @@ bench --site [your-site-name] migrate
 
 ---
 
-## 🛠️ Configuration & Usage
+## Configuration & Usage
 
 1. Open your Frappe / ERPNext Desk.
-2. Search for **Todo Notification Setting** in the awesome bar.
-3. Configure the settings:
-   - Check **Enabled** to activate notifications.
-   - Set your preferred **Send Time** (e.g. `09:00:00` for 9:00 AM).
-   - Select the **Email Template** (default: `Todo`).
-4. Click **Save**.
+2. Search for **Custom Notification Templates** in the awesome bar.
+3. Configure the **Overdue Task Notification** section:
+   - Check **Enable Overdue Notification** to activate.
+   - **Overdue Send Time (Daily)**: set an exact time (e.g. `10:00`) to get one overdue email per day. Leave empty to disable this trigger.
+   - **Repeat Interval (HH:MM)**: set how often to repeat (e.g. `01:00` = every 1 hour). Leave empty to disable this trigger.
+   - **Overdue Email Template**: select which custom template to use (options are populated automatically from `templates/emails/`).
+4. Configure the **Open Task Notification (Daily)** section:
+   - Check **Enable Open Task Notification** to activate.
+   - **Send Time**: set the exact time for the daily report (e.g. `09:00:00` for 9:00 AM).
+   - **Daily Todo Email Template**: select which custom template to use.
+5. Click **Save**.
+
+### Adding a custom template
+
+Drop a new HTML template into `notification_templates/templates/emails/`, e.g. `custom_template_1.html`. After a browser refresh it will automatically appear as an option in the **Overdue Email Template** and **Daily Todo Email Template** dropdowns. The template name shown is the file name without the `.html` extension.
+
+Your custom template receives these variables from the scheduler:
+
+| Variable | Description |
+| :--- | :--- |
+| `todo_list` | List of ToDo dicts (`name`, `description`, `status`, `priority`, `allocated_to`, `assigned_by`, `date`, `reference_type`, `reference_name`, ...) |
+| `report_title` | Heading text (e.g. "Daily TODO Report") |
+| `report_color` | Banner background color (`#eef6ff` daily / `#fff3f3` overdue) |
 
 ---
 
-## ⏱️ Scheduler Events
+## Scheduler Events
 
-The app hooks into the Frappe background scheduler:
+The app hooks into the Frappe background scheduler. Both functions run every minute and internally decide whether a send is due, so configured times are never missed:
 
 | Event / Cron | Function | Description |
 | :--- | :--- | :--- |
-| `*/5 * * * *` (Every 5 mins) | `send_daily_todo_report` | Checks if the configured daily send time has arrived and dispatches daily reports. |
-| `0 */2 * * *` (Every 2 hours) | `send_overdue_todo_report` | Scans for overdue tasks and dispatches overdue email alerts. |
+| `* * * * *` (Every minute) | `send_daily_todo_report` | Checks if the configured daily send time has arrived; sends once per day. |
+| `* * * * *` (Every minute) | `send_overdue_todo_report` | Checks fixed send time and repeat interval; sends when either is due. |
 
 ---
 
-## 👩‍💻 Development & Contributing
+## Development & Contributing
 
 This app uses `pre-commit` for formatting and code quality checks.
 
@@ -79,13 +100,12 @@ Configured linters & tools:
 
 ---
 
-## 👥 Contributors
+## Contributors
 
 - [MaAn-41](https://github.com/MaAn-41)
-- [Tariquaf](https://github.com/Tariquaf)
 
 ---
 
-## 📄 License
+## License
 
 [MIT](LICENSE)
