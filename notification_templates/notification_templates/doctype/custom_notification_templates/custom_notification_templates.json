@@ -1,0 +1,124 @@
+{
+ "actions": [],
+ "creation": "2026-08-29 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+  "field_order": [
+   "section_overdue",
+   "enable_overdue_notification",
+   "overdue_send_time",
+   "overdue_interval",
+   "overdue_template",
+   "overdue_time_last_run",
+   "overdue_last_run",
+   "section_open_task",
+   "enable_open_task_notification",
+   "open_task_send_time",
+   "daily_todo_template",
+   "open_task_last_run"
+  ],
+ "fields": [
+  {
+   "fieldname": "section_overdue",
+   "fieldtype": "Section Break",
+   "label": "Overdue Task Notification"
+  },
+  {
+   "default": "0",
+   "fieldname": "enable_overdue_notification",
+   "fieldtype": "Check",
+   "label": "Enable Overdue Notification"
+  },
+  {
+   "description": "Send overdue alert once daily at this exact time. Leave empty to disable.",
+   "fieldname": "overdue_send_time",
+   "fieldtype": "Time",
+   "in_list_view": 1,
+   "label": "Overdue Send Time (Daily)"
+  },
+  {
+   "default": "01:00:00",
+   "fieldname": "overdue_interval",
+   "fieldtype": "Time",
+   "in_list_view": 1,
+   "label": "Repeat Interval (HH:MM)",
+   "description": "How often to send overdue alerts. e.g. 01:00 = every 1 hour, 02:30 = every 2.5 hours"
+  },
+   {
+    "default": "todo",
+    "description": "Select which custom email template to use for overdue notifications",
+    "fieldname": "overdue_template",
+    "fieldtype": "Select",
+    "label": "Overdue Email Template"
+   },
+  {
+   "fieldname": "overdue_time_last_run",
+   "fieldtype": "Datetime",
+   "hidden": 1,
+   "label": "Overdue Send Time Last Run",
+   "read_only": 1
+  },
+  {
+   "fieldname": "overdue_last_run",
+   "fieldtype": "Datetime",
+   "hidden": 1,
+   "label": "Overdue Last Run",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_open_task",
+   "fieldtype": "Section Break",
+   "label": "Open Task Notification (Daily)"
+  },
+  {
+   "default": "0",
+   "fieldname": "enable_open_task_notification",
+   "fieldtype": "Check",
+   "label": "Enable Open Task Notification"
+  },
+   {
+    "default": "09:00:00",
+    "fieldname": "open_task_send_time",
+    "fieldtype": "Time",
+    "in_list_view": 1,
+    "label": "Send Time"
+   },
+   {
+    "default": "todo",
+    "description": "Select which custom email template to use for daily todo notifications",
+    "fieldname": "daily_todo_template",
+    "fieldtype": "Select",
+    "label": "Daily Todo Email Template"
+   },
+   {
+    "fieldname": "open_task_last_run",
+    "fieldtype": "Datetime",
+    "hidden": 1,
+    "label": "Open Task Last Run",
+    "read_only": 1
+   }
+ ],
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-08-31 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Notification Templates",
+ "name": "Custom Notification Templates",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC"
+}
