@@ -55,6 +55,16 @@ def _get_todo_fields():
 	]
 
 
+def _truncate_description(description, max_words=4):
+	if not description:
+		return description or ""
+	text = frappe.utils.strip_html(description).strip() if ("<" in str(description) and ">" in str(description)) else str(description).strip()
+	words = text.split()
+	if len(words) > max_words:
+		return " ".join(words[:max_words]) + "..."
+	return text
+
+
 def _group_todos_by_user(todos):
 	todos_by_user = {}
 	for todo in todos:
@@ -105,6 +115,10 @@ def _send_to_users(todos_by_user, template, subject, title, color):
 			frappe.log_error(f"No email for user {user}", subject)
 			continue
 
+		for todo in user_todos:
+			if todo.get("description"):
+				todo["description"] = _truncate_description(todo["description"])
+
 		frappe.sendmail(
 			recipients=[email],
 			subject=_(subject),
@@ -144,11 +158,10 @@ def send_daily_todo_report():
 	if now < target:
 		return
 
-	template = frappe.db.get_single_value("Custom Notification Templates", "daily_todo_template") or "todo"
 	todos = _get_open_todos(today)
 	_send_to_users(
 		_group_todos_by_user(todos),
-		template,
+		"todo",
 		"Daily TODO Report",
 		"Daily TODO Report",
 		"#eef6ff",
@@ -167,7 +180,6 @@ def send_overdue_todo_report():
 
 	now = frappe.utils.now_datetime()
 	today = frappe.utils.getdate(now)
-	template = frappe.db.get_single_value("Custom Notification Templates", "overdue_template") or "todo"
 
 	should_send = False
 
@@ -200,7 +212,7 @@ def send_overdue_todo_report():
 	todos = _get_overdue_todos(today)
 	_send_to_users(
 		_group_todos_by_user(todos),
-		template,
+		"todo",
 		"Overdue Tasks Alert",
 		"Overdue Tasks Alert",
 		"#fff3f3",
