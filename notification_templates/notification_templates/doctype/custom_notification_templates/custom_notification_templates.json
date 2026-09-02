@@ -8,13 +8,11 @@
    "enable_overdue_notification",
    "overdue_send_time",
    "overdue_interval",
-   "overdue_template",
    "overdue_time_last_run",
    "overdue_last_run",
    "section_open_task",
    "enable_open_task_notification",
    "open_task_send_time",
-   "daily_todo_template",
    "open_task_last_run"
   ],
  "fields": [
@@ -42,14 +40,7 @@
    "fieldtype": "Time",
    "in_list_view": 1,
    "label": "Repeat Interval (HH:MM)",
-   "description": "How often to send overdue alerts. e.g. 01:00 = every 1 hour, 02:30 = every 2.5 hours"
-  },
-   {
-    "default": "todo",
-    "description": "Select which custom email template to use for overdue notifications",
-    "fieldname": "overdue_template",
-    "fieldtype": "Select",
-    "label": "Overdue Email Template"
+"description": "How often to send overdue alerts. e.g. 01:00 = every 1 hour, 02:30 = every 2.5 hours"
    },
   {
    "fieldname": "overdue_time_last_run",
@@ -82,13 +73,6 @@
     "fieldtype": "Time",
     "in_list_view": 1,
     "label": "Send Time"
-   },
-   {
-    "default": "todo",
-    "description": "Select which custom email template to use for daily todo notifications",
-    "fieldname": "daily_todo_template",
-    "fieldtype": "Select",
-    "label": "Daily Todo Email Template"
    },
    {
     "fieldname": "open_task_last_run",
