@@ -43,7 +43,7 @@ app_license = "mit"
 # page_js = {"page" : "public/js/file.js"}
 
 # include js in doctype views
-# doctype_js = {"doctype" : "public/js/doctype.js"}
+doctype_js = {"Custom Notification Templates": "public/js/custom_notification_templates.js"}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
@@ -151,10 +151,8 @@ app_license = "mit"
 
 scheduler_events = {
 	"cron": {
-		"*/5 * * * *": [
+		"* * * * *": [
 			"notification_templates.tasks.send_daily_todo_report",
-		],
-		"0 */2 * * *": [
 			"notification_templates.tasks.send_overdue_todo_report",
 		]
 	},
