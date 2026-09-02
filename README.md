@@ -15,7 +15,6 @@ A Frappe / ERPNext application for sending scheduled email notifications, includ
   - Enable / disable notifications for daily and overdue separately.
   - Exact send time for daily report.
   - Exact send time and repeat interval for overdue alerts.
-  - **Dynamic Template Selection**: dropdown reads all templates available in `templates/emails/` automatically - drop a new `.html` file in that folder and it appears in the dropdown without any schema change.
   - **Duplicate Prevention**: tracks execution timestamps so emails are never sent twice for the same trigger window.
 - **Rich HTML Email Template**:
   - Direct clickable links to Frappe ToDo records and reference documents.
@@ -32,7 +31,7 @@ Install this app into your Frappe Bench:
 cd /path/to/frappe-bench
 
 # Fetch app from repository
-bench get-app https://github.com/Tariquaf/notification_templates.git --branch version-16
+bench get-app https://github.com/usmanagro7c-eng/ERP-Todo-Notification-Template.git --branch version-16
 
 # Install app on your site
 bench --site [your-site-name] install-app notification_templates
@@ -51,24 +50,12 @@ bench --site [your-site-name] migrate
    - Check **Enable Overdue Notification** to activate.
    - **Overdue Send Time (Daily)**: set an exact time (e.g. `10:00`) to get one overdue email per day. Leave empty to disable this trigger.
    - **Repeat Interval (HH:MM)**: set how often to repeat (e.g. `01:00` = every 1 hour). Leave empty to disable this trigger.
-   - **Overdue Email Template**: select which custom template to use (options are populated automatically from `templates/emails/`).
 4. Configure the **Open Task Notification (Daily)** section:
    - Check **Enable Open Task Notification** to activate.
    - **Send Time**: set the exact time for the daily report (e.g. `09:00:00` for 9:00 AM).
-   - **Daily Todo Email Template**: select which custom template to use.
 5. Click **Save**.
 
-### Adding a custom template
-
-Drop a new HTML template into `notification_templates/templates/emails/`, e.g. `custom_template_1.html`. After a browser refresh it will automatically appear as an option in the **Overdue Email Template** and **Daily Todo Email Template** dropdowns. The template name shown is the file name without the `.html` extension.
-
-Your custom template receives these variables from the scheduler:
-
-| Variable | Description |
-| :--- | :--- |
-| `todo_list` | List of ToDo dicts (`name`, `description`, `status`, `priority`, `allocated_to`, `assigned_by`, `date`, `reference_type`, `reference_name`, ...) |
-| `report_title` | Heading text (e.g. "Daily TODO Report") |
-| `report_color` | Banner background color (`#eef6ff` daily / `#fff3f3` overdue) |
+Both notifications use the `todo` email template located at `notification_templates/templates/emails/todo.html`.
 
 ---
 
