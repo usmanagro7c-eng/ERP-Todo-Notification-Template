@@ -35,12 +35,6 @@ function setupSectionToggles(frm) {
 		});
 	});
 
-	const startField = formWrapper.find('.frappe-control[data-fieldname="overdue_start_time"]');
-	const endField = formWrapper.find('.frappe-control[data-fieldname="overdue_end_time"]');
-	if (startField.length && endField.length) {
-		const verticalOffset = startField.offset().top - endField.offset().top;
-		endField.css("margin-top", `${verticalOffset}px`);
-	}
 }
 
 function sendNowOverdueReport() {
