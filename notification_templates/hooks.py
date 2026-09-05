@@ -26,7 +26,7 @@ app_license = "mit"
 
 # include js, css files in header of desk.html
 # app_include_css = "/assets/notification_templates/css/notification_templates.css"
-# app_include_js = "/assets/notification_templates/js/notification_templates.js"
+app_include_js = "/assets/notification_templates/js/custom_notification_templates.js?v=8"
 
 # include js, css files in header of web template
 # web_include_css = "/assets/notification_templates/css/notification_templates.css"
