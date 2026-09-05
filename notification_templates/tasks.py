@@ -102,6 +102,26 @@ def _get_open_todos(today):
 	)
 
 
+def _get_daily_todos(today):
+	"""Return all open and overdue tasks that are relevant for the daily digest."""
+	todos = frappe.get_all(
+		"ToDo",
+		filters={
+			"allocated_to": ["is", "set"],
+			"status": ["not in", ["Completed", "Cancelled", "Closed"]],
+			"date": ["<=", today],
+		},
+		fields=_get_todo_fields(),
+		order_by="creation asc",
+	)
+
+	for todo in todos:
+		if todo.get("date") and todo.get("date") < today:
+			todo["status"] = "Overdue"
+
+	return todos
+
+
 def _get_overdue_todos(today):
 	todos = frappe.get_all(
 		"ToDo",
@@ -181,7 +201,7 @@ def send_daily_todo_report():
 	if now < target:
 		return
 
-	todos = _get_open_todos(today)
+	todos = _get_daily_todos(today)
 	_send_to_users(
 		_group_todos_by_user(todos),
 		"todo",
@@ -194,7 +214,7 @@ def send_daily_todo_report():
 
 
 def send_overdue_todo_report():
-	"""Send overdue alert on configured fixed daily time (optional) and/or repeat interval (optional)."""
+	"""Send overdue alerts across the configured start/end window."""
 	if frappe.flags.in_test:
 		return
 
@@ -204,13 +224,6 @@ def send_overdue_todo_report():
 	now = frappe.utils.now_datetime()
 	today = frappe.utils.getdate(now)
 
-	# Process scheduled time-window emails
-	if _process_overdue_schedule(now):
-		return
-
-	should_send = False
-
-	# Trigger 1: fixed daily send time (overdue_send_time)
 	send_time = frappe.db.get_single_value("Custom Notification Templates", "overdue_send_time")
 	if send_time:
 		target = _get_target_time(now, send_time)
@@ -222,53 +235,62 @@ def send_overdue_todo_report():
 			already_sent_today = False
 
 		if now >= target and not already_sent_today:
-			should_send = True
-
-	# Trigger 2: repeat interval (overdue_interval)
-	interval = frappe.db.get_single_value("Custom Notification Templates", "overdue_interval")
-	if interval:
-		interval_hours, interval_minutes = _get_time_parts(interval)
-		interval_delta = timedelta(hours=interval_hours, minutes=interval_minutes)
-		raw_last_run = frappe.db.get_single_value("Custom Notification Templates", "overdue_last_run")
-		if not raw_last_run or (now - frappe.utils.get_datetime(raw_last_run)) >= interval_delta:
-			should_send = True
-
-	if not should_send:
+			todos = _get_overdue_todos(today)
+			_send_to_users(
+				_group_todos_by_user(todos),
+				"todo",
+				"Overdue Tasks Alert",
+				"Overdue Tasks Alert",
+				"#fff3f3",
+			)
+			frappe.db.set_single_value("Custom Notification Templates", "overdue_time_last_run", now, update_modified=False)
 		return
 
-	todos = _get_overdue_todos(today)
-	_send_to_users(
-		_group_todos_by_user(todos),
-		"todo",
-		"Overdue Tasks Alert",
-		"Overdue Tasks Alert",
-		"#fff3f3",
-	)
-
-	# Update both last-run markers so neither trigger re-fires immediately.
-	if send_time:
-		frappe.db.set_single_value("Custom Notification Templates", "overdue_time_last_run", now, update_modified=False)
-	if interval:
-		frappe.db.set_single_value("Custom Notification Templates", "overdue_last_run", now, update_modified=False)
+	# With no daily time, use the start/end window and distribute the configured mail count.
+	_process_overdue_schedule(now)
 
 
 def _process_overdue_schedule(now):
 	"""Check and send scheduled overdue emails based on time window."""
+	today = frappe.utils.getdate(now)
 	schedule_active = frappe.db.get_single_value("Custom Notification Templates", "overdue_schedule_active")
-	if not schedule_active:
-		return False
-
 	raw_schedule = frappe.db.get_single_value("Custom Notification Templates", "overdue_schedule")
-	if not raw_schedule:
-		return False
+	if schedule_active and raw_schedule:
+		try:
+			schedule = json.loads(raw_schedule)
+		except (json.JSONDecodeError, TypeError):
+			schedule = None
+		if schedule and schedule.get("date") != str(today):
+			schedule = None
+	else:
+		schedule = None
 
-	try:
-		schedule = json.loads(raw_schedule)
-	except (json.JSONDecodeError, TypeError):
-		return False
+	if not schedule:
+		start_time = frappe.db.get_single_value("Custom Notification Templates", "overdue_start_time")
+		end_time = frappe.db.get_single_value("Custom Notification Templates", "overdue_end_time")
+		num_mails = frappe.db.get_single_value("Custom Notification Templates", "overdue_num_mails")
+		if not start_time or not end_time or not num_mails or int(num_mails) < 2:
+			return False
+
+		start_minutes = _time_to_minutes(start_time)
+		end_minutes = _time_to_minutes(end_time)
+		if start_minutes >= end_minutes:
+			return False
+
+		interval = (end_minutes - start_minutes) / (int(num_mails) - 1)
+		schedule = {
+			"date": str(today),
+			"slots": [
+				{"time": _minutes_to_time(start_minutes + (index * interval)), "sent": False}
+				for index in range(int(num_mails))
+			],
+		}
+		frappe.db.set_single_value(
+			"Custom Notification Templates", "overdue_schedule", json.dumps(schedule), update_modified=False
+		)
+		frappe.db.set_single_value("Custom Notification Templates", "overdue_schedule_active", 1, update_modified=False)
 
 	slots = schedule.get("slots", [])
-	today = frappe.utils.getdate(now)
 	current_time_str = now.strftime("%H:%M:%S")
 	current_minutes = _time_to_minutes(current_time_str)
 
@@ -307,7 +329,7 @@ def _process_overdue_schedule(now):
 			)
 		return True
 
-	return False
+	return True
 
 
 @frappe.whitelist()
@@ -346,7 +368,7 @@ def send_now_daily_report():
 	"""Send the daily open task report immediately."""
 	frappe.only_for("System Manager")
 	today = frappe.utils.getdate(frappe.utils.nowdate())
-	todos = _get_open_todos(today)
+	todos = _get_daily_todos(today)
 	sent = _send_to_users(
 		_group_todos_by_user(todos),
 		"todo",
