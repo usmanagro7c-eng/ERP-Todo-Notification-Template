@@ -8,11 +8,11 @@
     "enable_overdue_notification",
     "overdue_send_time",
     "col_break_overdue_1",
-    "overdue_interval",
     "overdue_start_time",
     "col_break_overdue_2",
-    "overdue_num_mails",
     "overdue_end_time",
+    "col_break_overdue_3",
+    "overdue_num_mails",
     "overdue_time_last_run",
     "overdue_last_run",
     "overdue_schedule",
@@ -45,13 +45,6 @@
     "fieldtype": "Column Break",
     "fieldname": "col_break_overdue_1"
    },
-   {
-    "default": "01:00:00",
-    "fieldname": "overdue_interval",
-    "fieldtype": "Time",
-    "in_list_view": 1,
-    "label": "Repeat Interval (HH:MM)"
-   },
   {
     "fieldname": "overdue_start_time",
     "fieldtype": "Time",
@@ -67,7 +60,11 @@
     "label": "Schedule End Time"
    },
    {
-    "default": "1",
+    "fieldtype": "Column Break",
+    "fieldname": "col_break_overdue_3"
+   },
+   {
+    "default": "2",
     "fieldname": "overdue_num_mails",
     "fieldtype": "Int",
     "label": "Number of Mails"
