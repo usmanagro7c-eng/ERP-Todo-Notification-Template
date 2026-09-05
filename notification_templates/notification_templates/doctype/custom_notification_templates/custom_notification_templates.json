@@ -3,17 +3,24 @@
  "creation": "2026-08-29 00:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
-  "field_order": [
-   "section_overdue",
-   "enable_overdue_notification",
-   "overdue_send_time",
-   "overdue_interval",
-   "overdue_time_last_run",
-   "overdue_last_run",
-   "section_open_task",
-   "enable_open_task_notification",
-   "open_task_send_time",
-   "open_task_last_run"
+"field_order": [
+    "section_overdue",
+    "enable_overdue_notification",
+    "overdue_send_time",
+    "col_break_overdue_1",
+    "overdue_interval",
+    "overdue_start_time",
+    "col_break_overdue_2",
+    "overdue_num_mails",
+    "overdue_end_time",
+    "overdue_time_last_run",
+    "overdue_last_run",
+    "overdue_schedule",
+    "overdue_schedule_active",
+    "section_open_task",
+    "enable_open_task_notification",
+    "open_task_send_time",
+    "open_task_last_run"
   ],
  "fields": [
   {
@@ -27,37 +34,73 @@
    "fieldtype": "Check",
    "label": "Enable Overdue Notification"
   },
-  {
-   "description": "Send overdue alert once daily at this exact time. Leave empty to disable.",
-   "fieldname": "overdue_send_time",
-   "fieldtype": "Time",
-   "in_list_view": 1,
-   "label": "Overdue Send Time (Daily)"
-  },
-  {
-   "default": "01:00:00",
-   "fieldname": "overdue_interval",
-   "fieldtype": "Time",
-   "in_list_view": 1,
-   "label": "Repeat Interval (HH:MM)",
-"description": "How often to send overdue alerts. e.g. 01:00 = every 1 hour, 02:30 = every 2.5 hours"
+{
+    "description": "Leave empty to disable.",
+    "fieldname": "overdue_send_time",
+    "fieldtype": "Time",
+    "in_list_view": 1,
+    "label": "Overdue Send Time (Daily)"
+   },
+   {
+    "fieldtype": "Column Break",
+    "fieldname": "col_break_overdue_1"
+   },
+   {
+    "default": "01:00:00",
+    "fieldname": "overdue_interval",
+    "fieldtype": "Time",
+    "in_list_view": 1,
+    "label": "Repeat Interval (HH:MM)"
    },
   {
-   "fieldname": "overdue_time_last_run",
-   "fieldtype": "Datetime",
-   "hidden": 1,
-   "label": "Overdue Send Time Last Run",
-   "read_only": 1
-  },
+    "fieldname": "overdue_start_time",
+    "fieldtype": "Time",
+    "label": "Schedule Start Time"
+   },
+   {
+    "fieldtype": "Column Break",
+    "fieldname": "col_break_overdue_2"
+   },
   {
-   "fieldname": "overdue_last_run",
-   "fieldtype": "Datetime",
-   "hidden": 1,
-   "label": "Overdue Last Run",
-   "read_only": 1
-  },
-  {
-   "fieldname": "section_open_task",
+    "fieldname": "overdue_end_time",
+    "fieldtype": "Time",
+    "label": "Schedule End Time"
+   },
+   {
+    "default": "1",
+    "fieldname": "overdue_num_mails",
+    "fieldtype": "Int",
+    "label": "Number of Mails"
+   },
+    {
+     "fieldname": "overdue_time_last_run",
+     "fieldtype": "Datetime",
+     "hidden": 1,
+     "label": "Overdue Send Time Last Run",
+     "read_only": 1
+    },
+    {
+     "fieldname": "overdue_last_run",
+     "fieldtype": "Datetime",
+     "hidden": 1,
+     "label": "Overdue Last Run",
+     "read_only": 1
+    },
+   {
+    "fieldname": "overdue_schedule",
+    "fieldtype": "Small Text",
+    "hidden": 1,
+    "label": "Overdue Schedule",
+    "read_only": 1
+   },
+   {
+    "fieldname": "overdue_schedule_active",
+    "fieldtype": "Check",
+    "hidden": 1,
+    "label": "Overdue Schedule Active"
+   },
+   {
+    "fieldname": "section_open_task",
    "fieldtype": "Section Break",
    "label": "Open Task Notification (Daily)"
   },
