@@ -1,8 +1,9 @@
-<div
-	style="background: {{ report_color or '#eef6ff' }}; border-left: 5px solid #2d95f0; padding: 12px 14px; margin: 0 0 16px 0; border-radius: 6px; font-weight: 700; font-size: 16px; color: #1f2937;"
->
-	{{ report_title or _('Following Todos require attention') }}
-</div>
+<p style="margin: 0 0 16px 0; font-family: Arial, sans-serif; font-size: 15px; color: #1f2937;">
+	{{ _("Dear {0},").format(recipient_name or "User") }}
+</p>
+<p style="margin: 0 0 18px 0; font-family: Arial, sans-serif; font-size: 15px; color: #1f2937;">
+	{{ report_intro or _("Your todo tasks are given below:") }}
+</p>
 {% if todo_list %}
 <table
 	style="
@@ -68,7 +69,8 @@
 					padding: 14px 12px;
 					border: 1px solid #dfe3e8;
 					text-align: left;
-					width: 12%;
+					width: 22%;
+					min-width: 220px;
 					word-wrap: break-word;
 				"
 			>
@@ -101,7 +103,7 @@
 					padding: 14px 12px;
 					border: 1px solid #dfe3e8;
 					text-align: left;
-					width: 28%;
+					width: 18%;
 					word-wrap: break-word;
 				"
 			>
@@ -118,6 +120,7 @@
 					border: 1px solid #dfe3e8;
 					vertical-align: top;
 					word-wrap: break-word;
+					min-width: 220px;
 				"
 			>
 				{{ frappe.utils.get_link_to_form("ToDo", todo.name) }}
@@ -224,6 +227,7 @@
 					border: 1px solid #dfe3e8;
 					vertical-align: top;
 					word-wrap: break-word;
+					min-width: 220px;
 				"
 			>
 				{{ todo.allocated_to or "-" }}
