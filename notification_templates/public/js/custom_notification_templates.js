@@ -1,7 +1,5 @@
 frappe.ui.form.on("Custom Notification Templates", {
 	refresh(frm) {
-		setupSectionToggles(frm);
-
 		if (frm.is_new()) {
 			return;
 		}
@@ -10,32 +8,6 @@ frappe.ui.form.on("Custom Notification Templates", {
 		frm.add_custom_button(__("Open Task Report"), sendOpenTaskReport, __("Send Now"));
 	},
 });
-
-function setupSectionToggles(frm) {
-	const formWrapper = $(frm.wrapper);
-
-	["section_overdue", "section_open_task"].forEach((fieldname) => {
-		const section = formWrapper.find(`[data-fieldname="${fieldname}"]`);
-		const header = section.find(".section-head");
-		if (!header.find(".notification-section-arrow").length) {
-			header.append(
-				$('<span class="notification-section-arrow">&gt;</span>').css({
-					display: "inline-block",
-					"font-size": "18px",
-					"font-weight": "700",
-					"margin-left": "8px",
-				})
-			);
-		}
-
-		header.off("click.notificationTemplates").on("click.notificationTemplates", function (event) {
-			event.preventDefault();
-			section.find(".section-body").stop(true, true).slideToggle(150);
-			section.toggleClass("collapsed");
-		});
-	});
-
-}
 
 function sendNowOverdueReport() {
 	frappe.confirm(__("Send overdue task report now?"), () => {

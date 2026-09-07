@@ -24,6 +24,7 @@
   ],
  "fields": [
   {
+   "collapsible": 1,
    "fieldname": "section_overdue",
    "fieldtype": "Section Break",
    "label": "Overdue Task Notification"
@@ -97,10 +98,11 @@
     "label": "Overdue Schedule Active"
    },
    {
+    "collapsible": 1,
     "fieldname": "section_open_task",
-   "fieldtype": "Section Break",
-   "label": "Open Task Notification (Daily)"
-  },
+    "fieldtype": "Section Break",
+    "label": "Open Task Notification (Daily)"
+   },
   {
    "default": "0",
    "fieldname": "enable_open_task_notification",
