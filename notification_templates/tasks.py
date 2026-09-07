@@ -173,10 +173,27 @@ def _get_overdue_todos(today):
 
 
 def _send_to_users(todos_by_user, template, subject, title, color, send_now=False):
+	if not todos_by_user:
+		return False
+
+	user_info = {
+		u.name: u
+		for u in frappe.get_all(
+			"User",
+			filters={"name": ["in", list(todos_by_user.keys())], "enabled": 1},
+			fields=["name", "email", "full_name"],
+		)
+	}
+
 	sent = False
 	for user, user_todos in todos_by_user.items():
-		email = frappe.db.get_value("User", user, "email")
-		recipient_name = frappe.db.get_value("User", user, "full_name") or user
+		u = user_info.get(user)
+		if not u:
+			# Skip disabled users or users that do not exist
+			continue
+
+		email = u.email
+		recipient_name = u.full_name or user
 		if not email:
 			frappe.log_error(f"No email for user {user}", subject)
 			continue
