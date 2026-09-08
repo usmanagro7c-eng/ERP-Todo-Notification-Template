@@ -84,6 +84,12 @@
 					{{ todo.status }}
 				</span>
 
+			{%- elif todo.status == "Open" -%}
+
+				<span style="background: #e3f2fd; color: #1565c0; padding: 3px 7px; border-radius: 3px; display: inline-block;">
+					{{ todo.status }}
+				</span>
+
 			{%- else -%}
 
 				{{ todo.status or "-" }}

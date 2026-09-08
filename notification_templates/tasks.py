@@ -135,6 +135,7 @@ def _get_open_todos(today):
 
 def _get_daily_todos(today):
 	"""Return all open and overdue tasks that are relevant for the daily digest."""
+	today = frappe.utils.getdate(today)
 	todos = frappe.get_all(
 		"ToDo",
 		filters={
@@ -143,33 +144,19 @@ def _get_daily_todos(today):
 			"date": ["<=", today],
 		},
 		fields=_get_todo_fields(),
-		order_by="creation asc",
+		order_by="date asc, creation asc",
 	)
 
 	for todo in todos:
-		if todo.get("date") and todo.get("date") < today:
+		if todo.get("date") and frappe.utils.getdate(todo.get("date")) < today:
 			todo["status"] = "Overdue"
 
 	return todos
 
 
 def _get_overdue_todos(today):
-	todos = frappe.get_all(
-		"ToDo",
-		filters={
-			"allocated_to": ["is", "set"],
-			"status": ["not in", ["Completed", "Cancelled", "Closed"]],
-			"date": ["<", today],
-		},
-		fields=_get_todo_fields(),
-		order_by="creation asc",
-	)
-
-	for todo in todos:
-		if todo.get("date") and todo.get("date") < today:
-			todo["status"] = "Overdue"
-
-	return todos
+	"""Return all overdue and open tasks due today or earlier (same as daily digest)."""
+	return _get_daily_todos(today)
 
 
 def _send_to_users(todos_by_user, template, subject, title, color, send_now=False):
@@ -202,9 +189,30 @@ def _send_to_users(todos_by_user, template, subject, title, color, send_now=Fals
 			if todo.get("description"):
 				todo["description"] = _truncate_description(todo["description"])
 
+		has_overdue = any(t.get("status") == "Overdue" for t in user_todos)
+		has_open = any(t.get("status") != "Overdue" for t in user_todos)
+
+		user_subject = subject
+		if subject in ["Overdue Tasks Alert", "Overdue & Open Tasks Alert"]:
+			if has_overdue and has_open:
+				user_subject = "Overdue & Open Tasks Alert"
+			elif has_overdue:
+				user_subject = "Overdue Tasks Alert"
+			elif has_open:
+				user_subject = "Open Tasks Alert"
+
+		if title == "Daily TODO Report":
+			report_intro = _("Your daily todo tasks are given below:")
+		elif has_overdue and has_open:
+			report_intro = _("Your overdue and open todo tasks are given below:")
+		elif has_overdue:
+			report_intro = _("Your overdue todo tasks are given below:")
+		else:
+			report_intro = _("Your daily todo tasks are given below:")
+
 		frappe.sendmail(
 			recipients=[email],
-			subject=_(subject),
+			subject=_(user_subject),
 			template=template,
 			delayed=not send_now,
 			raw_html=True,
@@ -213,11 +221,7 @@ def _send_to_users(todos_by_user, template, subject, title, color, send_now=Fals
 				"report_title": _(title),
 				"report_color": color,
 				"recipient_name": recipient_name,
-				"report_intro": _(
-					"Your daily todo tasks are given below:"
-					if title == "Daily TODO Report"
-					else "Your overdue todo tasks are given below:"
-				),
+				"report_intro": report_intro,
 			},
 		)
 		sent = True
@@ -288,8 +292,8 @@ def send_overdue_todo_report():
 			_send_to_users(
 				_group_todos_by_user(todos),
 				"todo",
-				"Overdue Tasks Alert",
-				"Overdue Tasks Alert",
+				"Overdue & Open Tasks Alert",
+				"Overdue & Open Tasks Alert",
 				"#fff3f3",
 			)
 			frappe.db.set_single_value("Custom Notification Templates", "overdue_time_last_run", now, update_modified=False)
@@ -383,8 +387,8 @@ def _process_overdue_schedule(now, just_sent_fixed=False):
 			_send_to_users(
 				_group_todos_by_user(todos),
 				"todo",
-				"Overdue Tasks Alert",
-				"Overdue Tasks Alert",
+				"Overdue & Open Tasks Alert",
+				"Overdue & Open Tasks Alert",
 				"#fff3f3",
 			)
 			slot["sent"] = True
@@ -483,11 +487,11 @@ def send_now_overdue_report():
 	sent = _send_to_users(
 		_group_todos_by_user(todos),
 		"todo",
-		"Overdue Tasks Alert",
-		"Overdue Tasks Alert",
+		"Overdue & Open Tasks Alert",
+		"Overdue & Open Tasks Alert",
 		"#fff3f3",
 		send_now=True,
 	)
 	if sent:
-		return _("Overdue report sent successfully!")
-	return _("No overdue tasks found to send.")
+		return _("Overdue & Open tasks report sent successfully!")
+	return _("No overdue or open tasks found to send.")
