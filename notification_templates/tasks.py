@@ -262,7 +262,7 @@ def send_daily_todo_report():
 
 
 def send_overdue_todo_report():
-	"""Send overdue alerts across the configured start/end window."""
+	"""Send overdue alerts across the configured start/end window and fixed daily time."""
 	if frappe.flags.in_test:
 		return
 
@@ -271,6 +271,7 @@ def send_overdue_todo_report():
 
 	now = frappe.utils.now_datetime()
 	today = frappe.utils.getdate(now)
+	just_sent_fixed = False
 
 	send_time = frappe.db.get_single_value("Custom Notification Templates", "overdue_send_time")
 	if send_time:
@@ -292,13 +293,13 @@ def send_overdue_todo_report():
 				"#fff3f3",
 			)
 			frappe.db.set_single_value("Custom Notification Templates", "overdue_time_last_run", now, update_modified=False)
-		return
+			just_sent_fixed = True
 
-	# With no daily time, use the start/end window and distribute the configured mail count.
-	_process_overdue_schedule(now)
+	# Process scheduled window (intervals) as well if configured
+	_process_overdue_schedule(now, just_sent_fixed=just_sent_fixed)
 
 
-def _process_overdue_schedule(now):
+def _process_overdue_schedule(now, just_sent_fixed=False):
 	"""Check and send scheduled overdue emails based on time window."""
 	today = frappe.utils.getdate(now)
 	start_time = frappe.db.get_single_value("Custom Notification Templates", "overdue_start_time")
@@ -371,6 +372,13 @@ def _process_overdue_schedule(now):
 			continue
 		slot_seconds = _time_to_seconds(slot.get("time", ""))
 		if slot_seconds <= current_seconds:
+			if just_sent_fixed:
+				# Fixed overdue alert was already sent in this exact execution,
+				# mark this slot as sent so a duplicate email is not sent in the same minute.
+				slot["sent"] = True
+				updated = True
+				break
+
 			todos = _get_overdue_todos(today)
 			_send_to_users(
 				_group_todos_by_user(todos),
