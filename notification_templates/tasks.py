@@ -8,33 +8,36 @@ DEFAULT_DAILY_TIME = "09:00:00"
 
 def _get_time_parts(value):
 	if not value:
-		return 0, 0
+		return 0, 0, 0
 
 	if isinstance(value, timedelta):
 		total_seconds = int(value.total_seconds())
 		hours, remainder = divmod(total_seconds, 3600)
-		minutes, _ = divmod(remainder, 60)
-		return hours, minutes
+		minutes, seconds = divmod(remainder, 60)
+		return hours, minutes, seconds
 
 	if hasattr(value, "hour") and hasattr(value, "minute"):
-		return value.hour, value.minute
+		return value.hour, value.minute, getattr(value, "second", 0)
 
 	try:
 		parts = str(value).strip().split(":")
-		return int(parts[0]), int(parts[1])
+		hours = int(parts[0])
+		minutes = int(parts[1]) if len(parts) > 1 else 0
+		seconds = int(float(parts[2])) if len(parts) > 2 else 0
+		return hours, minutes, seconds
 	except Exception:
-		return 0, 0
+		return 0, 0, 0
 
 
 def _get_target_time(now, time_value):
 	"""Build today's target datetime (naive, system timezone) from a time value."""
-	hour, minute = _get_time_parts(time_value)
-	return now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+	hour, minute, second = _get_time_parts(time_value)
+	return now.replace(hour=hour, minute=minute, second=second, microsecond=0)
 
 
 def _time_to_minutes(time_str):
 	"""Convert time string HH:MM:SS or HH:MM to total minutes from midnight."""
-	hours, minutes = _get_time_parts(time_str)
+	hours, minutes, _ = _get_time_parts(time_str)
 	return hours * 60 + minutes
 
 
@@ -159,7 +162,7 @@ def _get_overdue_todos(today):
 	return _get_daily_todos(today)
 
 
-def _send_to_users(todos_by_user, template, subject, title, color, send_now=False):
+def _send_to_users(todos_by_user, template, subject, title, color, send_now=False, send_after=None):
 	if not todos_by_user:
 		return False
 
@@ -214,7 +217,8 @@ def _send_to_users(todos_by_user, template, subject, title, color, send_now=Fals
 			recipients=[email],
 			subject=_(user_subject),
 			template=template,
-			delayed=not send_now,
+			delayed=True if send_after else not send_now,
+			send_after=send_after,
 			raw_html=True,
 			args={
 				"todo_list": user_todos,
@@ -260,6 +264,7 @@ def send_daily_todo_report():
 		"Daily TODO Report",
 		"Daily TODO Report",
 		"#eef6ff",
+		send_now=True,
 	)
 
 	frappe.db.set_single_value("Custom Notification Templates", "open_task_last_run", now, update_modified=False)
@@ -295,12 +300,65 @@ def send_overdue_todo_report():
 				"Overdue & Open Tasks Alert",
 				"Overdue & Open Tasks Alert",
 				"#fff3f3",
+				send_now=True,
 			)
 			frappe.db.set_single_value("Custom Notification Templates", "overdue_time_last_run", now, update_modified=False)
 			just_sent_fixed = True
 
 	# Process scheduled window (intervals) as well if configured
 	_process_overdue_schedule(now, just_sent_fixed=just_sent_fixed)
+
+	# Child table based scheduling
+	overdue_schedules = frappe.get_all(
+		"Overdue Notification Schedule",
+		filters={"parent": "Custom Notification Templates", "enable": 1},
+		fields=["name", "time", "last_run", "queued_date"],
+	)
+
+	for schedule in overdue_schedules:
+		if not schedule.get("time"):
+			continue
+
+		target = _get_target_time(now, schedule.time)
+
+		# Already sent today? Skip
+		if schedule.get("last_run"):
+			last_run = frappe.utils.get_datetime(schedule.last_run)
+			if frappe.utils.getdate(last_run) == today and last_run >= target:
+				continue
+
+		# Not yet at scheduled time? Queue delayed email if not already queued
+		if now < target:
+			if schedule.get("queued_date") != str(today):
+				todos = _get_overdue_todos(today)
+				_send_to_users(
+					_group_todos_by_user(todos),
+					"todo",
+					"Overdue & Open Tasks Alert",
+					"Overdue & Open Tasks Alert",
+					"#fff3f3",
+					send_after=target,
+				)
+				frappe.db.set_value(
+					"Overdue Notification Schedule",
+					schedule.name,
+					{"queued_date": today, "last_run": target},
+				)
+			continue
+
+		# Time has passed and not yet sent - send immediately
+		todos = _get_overdue_todos(today)
+		_send_to_users(
+			_group_todos_by_user(todos),
+			"todo",
+			"Overdue & Open Tasks Alert",
+			"Overdue & Open Tasks Alert",
+			"#fff3f3",
+			send_now=True,
+		)
+
+		# Update last_run
+		frappe.db.set_value("Overdue Notification Schedule", schedule.name, "last_run", now)
 
 
 def _process_overdue_schedule(now, just_sent_fixed=False):
@@ -390,6 +448,7 @@ def _process_overdue_schedule(now, just_sent_fixed=False):
 				"Overdue & Open Tasks Alert",
 				"Overdue & Open Tasks Alert",
 				"#fff3f3",
+				send_now=True,
 			)
 			slot["sent"] = True
 			updated = True

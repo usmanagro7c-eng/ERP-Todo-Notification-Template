@@ -17,6 +17,8 @@
     "overdue_last_run",
     "overdue_schedule",
     "overdue_schedule_active",
+    "section_overdue_schedule",
+    "overdue_schedules",
     "section_open_task",
     "enable_open_task_notification",
     "open_task_send_time",
@@ -91,14 +93,25 @@
     "label": "Overdue Schedule",
     "read_only": 1
    },
-   {
-    "fieldname": "overdue_schedule_active",
-    "fieldtype": "Check",
-    "hidden": 1,
-    "label": "Overdue Schedule Active"
-   },
-   {
-    "collapsible": 1,
+    {
+      "fieldname": "overdue_schedule_active",
+      "fieldtype": "Check",
+      "hidden": 1,
+      "label": "Overdue Schedule Active"
+     },
+     {
+      "fieldname": "section_overdue_schedule",
+      "fieldtype": "Section Break",
+      "label": "Overdue Notification Schedule"
+     },
+     {
+      "fieldname": "overdue_schedules",
+      "fieldtype": "Table",
+      "label": "Overdue Notification Schedule",
+      "options": "Overdue Notification Schedule"
+     },
+    {
+     "collapsible": 1,
     "fieldname": "section_open_task",
     "fieldtype": "Section Break",
     "label": "Open Task Notification (Daily)"
