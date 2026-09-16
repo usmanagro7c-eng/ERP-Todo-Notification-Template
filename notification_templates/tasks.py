@@ -103,6 +103,33 @@ def _get_todo_fields():
 	]
 
 
+def _enrich_reference_status(todos):
+	"""Attach each todo's reference document's real status as 'reference_status'."""
+	from collections import defaultdict
+
+	refs_by_type = defaultdict(list)
+	for todo in todos:
+		rt = todo.get("reference_type")
+		rn = todo.get("reference_name")
+		if rt and rn:
+			refs_by_type[rt].append((rn, todo))
+
+	for ref_type, items in refs_by_type.items():
+		ref_names = list({rn for rn, _ in items})
+		try:
+			statuses = frappe.get_all(
+				ref_type,
+				filters={"name": ["in", ref_names]},
+				fields=["name", "status"],
+			)
+			status_map = {s.name: s.status for s in statuses}
+			for rn, todo in items:
+				todo["reference_status"] = status_map.get(rn, "")
+		except Exception:
+			for _, todo in items:
+				todo["reference_status"] = ""
+
+
 def _truncate_description(description, max_words=4):
 	if not description:
 		return description or ""
@@ -124,7 +151,7 @@ def _group_todos_by_user(todos):
 
 
 def _get_open_todos(today):
-	return frappe.get_all(
+	todos = frappe.get_all(
 		"ToDo",
 		filters={
 			"status": "Open",
@@ -134,6 +161,7 @@ def _get_open_todos(today):
 		fields=_get_todo_fields(),
 		order_by="creation asc",
 	)
+	return todos
 
 
 def _get_daily_todos(today):
@@ -152,7 +180,7 @@ def _get_daily_todos(today):
 
 	for todo in todos:
 		if todo.get("date") and frappe.utils.getdate(todo.get("date")) < today:
-			todo["status"] = "Overdue"
+			todo["is_overdue"] = True
 
 	return todos
 
@@ -165,6 +193,9 @@ def _get_overdue_todos(today):
 def _send_to_users(todos_by_user, template, subject, title, color, send_now=False, send_after=None):
 	if not todos_by_user:
 		return False
+
+	all_todos = [t for todos in todos_by_user.values() for t in todos]
+	_enrich_reference_status(all_todos)
 
 	user_info = {
 		u.name: u
@@ -192,8 +223,8 @@ def _send_to_users(todos_by_user, template, subject, title, color, send_now=Fals
 			if todo.get("description"):
 				todo["description"] = _truncate_description(todo["description"])
 
-		has_overdue = any(t.get("status") == "Overdue" for t in user_todos)
-		has_open = any(t.get("status") != "Overdue" for t in user_todos)
+		has_overdue = any(t.get("is_overdue") for t in user_todos)
+		has_open = any(not t.get("is_overdue") for t in user_todos)
 
 		user_subject = subject
 		if subject in ["Overdue Tasks Alert", "Overdue & Open Tasks Alert"]:
