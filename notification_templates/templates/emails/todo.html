@@ -72,28 +72,12 @@
 
 		<td style="padding: 10px; border: 1px solid #dfe3e8; vertical-align: top; word-break: break-word; overflow-wrap: break-word;">
 
-{% set ref_status = todo.reference_status or todo.status or "-" %}
-			{% if ref_status == "Paid" -%}
+			{% set ref_status = todo.reference_status or todo.status or "-" %}
+			{% set bg = todo.reference_badge_bg or "#f3f4f6" %}
+			{% set fg = todo.reference_badge_fg or "#374151" %}
+			{% if ref_status != "-" -%}
 
-				<span style="background: #e8f5e9; color: #2e7d32; padding: 3px 7px; border-radius: 3px; display: inline-block;">
-					{{ ref_status }}
-				</span>
-
-			{%- elif ref_status == "Submitted" -%}
-
-				<span style="background: #e3f2fd; color: #1565c0; padding: 3px 7px; border-radius: 3px; display: inline-block;">
-					{{ ref_status }}
-				</span>
-
-			{%- elif ref_status == "Draft" -%}
-
-				<span style="background: #fff8e1; color: #ff6f00; padding: 3px 7px; border-radius: 3px; display: inline-block;">
-					{{ ref_status }}
-				</span>
-
-			{%- elif ref_status == "Overdue" -%}
-
-				<span style="background: #ffebee; color: #c62828; padding: 3px 7px; border-radius: 3px; display: inline-block;">
+				<span style="background: {{ bg }}; color: {{ fg }}; padding: 3px 7px; border-radius: 3px; display: inline-block;">
 					{{ ref_status }}
 				</span>
 

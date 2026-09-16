@@ -103,6 +103,35 @@ def _get_todo_fields():
 	]
 
 
+def _get_status_badge(status):
+	"""Return (background, foreground) colors for a status/workflow_state badge."""
+	status = (status or "").strip()
+	colors = {
+		# Green
+		"Paid": ("#e8f5e9", "#2e7d32"),
+		"Completed": ("#e8f5e9", "#2e7d32"),
+		"Approved": ("#e8f5e9", "#2e7d32"),
+		# Blue
+		"Submitted": ("#e3f2fd", "#1565c0"),
+		"Open": ("#e3f2fd", "#1565c0"),
+		"Active": ("#e3f2fd", "#1565c0"),
+		# Orange / Yellow
+		"Draft": ("#fff8e1", "#ff6f00"),
+		"Pending": ("#fff8e1", "#ff6f00"),
+		"In Review": ("#fff8e1", "#ff6f00"),
+		"Working": ("#fff8e1", "#ff6f00"),
+		# Red
+		"Overdue": ("#ffebee", "#c62828"),
+		"Rejected": ("#ffebee", "#c62828"),
+		"Failed": ("#ffebee", "#c62828"),
+		# Grey
+		"Closed": ("#f3f4f6", "#374151"),
+		"Cancelled": ("#f3f4f6", "#374151"),
+		"Template": ("#f3f4f6", "#374151"),
+	}
+	return colors.get(status, ("#f3f4f6", "#374151"))
+
+
 def _enrich_reference_status(todos):
 	"""Attach each todo's reference document's real status as 'reference_status'."""
 	from collections import defaultdict
@@ -114,17 +143,25 @@ def _enrich_reference_status(todos):
 		if rt and rn:
 			refs_by_type[rt].append((rn, todo))
 
+	STATUS_COLORS = _get_status_badge  # local alias
+
 	for ref_type, items in refs_by_type.items():
 		ref_names = list({rn for rn, _ in items})
+		fields = ["name", "status"]
 		try:
-			statuses = frappe.get_all(
-				ref_type,
-				filters={"name": ["in", ref_names]},
-				fields=["name", "status"],
-			)
-			status_map = {s.name: s.status for s in statuses}
+			if frappe.get_meta(ref_type).has_field("workflow_state"):
+				fields.append("workflow_state")
+			statuses = frappe.get_all(ref_type, filters={"name": ["in", ref_names]}, fields=fields)
+			rows = {s.name: s for s in statuses}
 			for rn, todo in items:
-				todo["reference_status"] = status_map.get(rn, "")
+				row = rows.get(rn)
+				ref_status = ""
+				if row:
+					ref_status = row.get("workflow_state") or row.get("status") or ""
+				todo["reference_status"] = ref_status
+				bg, fg = STATUS_COLORS(ref_status)
+				todo["reference_badge_bg"] = bg
+				todo["reference_badge_fg"] = fg
 		except Exception:
 			for _, todo in items:
 				todo["reference_status"] = ""
