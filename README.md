@@ -9,12 +9,12 @@ A Frappe / ERPNext application for sending scheduled email notifications, includ
 - **Daily ToDo Digest**: Aggregates all open ToDo items assigned to each user and dispatches a formatted email summary once a day at a configured exact time.
 - **Overdue Tasks Alert**: Two independent triggers for overdue notifications:
   - **Fixed Send Time**: Send once daily at an exact time (e.g. `10:00`).
-  - **Repeat Interval**: Send repeatedly every X hours (e.g. `01:00` = every 1 hour, `06:00` = every 6 hours).
-  - Both can be enabled together; each runs independently.
+  - **Overdue Notification Schedule**: a child table where each enabled row sends one overdue email at its own exact time (e.g. `13:00`, `13:10`, `13:20`).
+  - Both can be enabled together; each row runs independently.
 - **Configurable Settings DocType (`Custom Notification Templates`)**:
   - Enable / disable notifications for daily and overdue separately.
   - Exact send time for daily report.
-  - Exact send time and repeat interval for overdue alerts.
+  - Exact send time plus a multi-slot schedule for overdue alerts.
   - **Duplicate Prevention**: tracks execution timestamps so emails are never sent twice for the same trigger window.
 - **Rich HTML Email Template**:
   - Direct clickable links to Frappe ToDo records and reference documents.
@@ -47,9 +47,9 @@ bench --site [your-site-name] migrate
 1. Open your Frappe / ERPNext Desk.
 2. Search for **Custom Notification Templates** in the awesome bar.
 3. Configure the **Overdue Task Notification** section:
-   - Check **Enable Overdue Notification** to activate.
-   - **Overdue Send Time (Daily)**: set an exact time (e.g. `10:00`) to get one overdue email per day. Leave empty to disable this trigger.
-   - **Repeat Interval (HH:MM)**: set how often to repeat (e.g. `01:00` = every 1 hour). Leave empty to disable this trigger.
+    - Check **Enable Overdue Notification** to activate.
+    - **Overdue Send Time (Daily)**: set an exact time (e.g. `10:00`) to get one overdue email per day. Leave empty to disable this trigger.
+    - **Overdue Notification Schedule**: add one row per extra send time you want (e.g. `13:00`, `13:10`, `13:20`). Uncheck **Enable** on a row to skip it. Each enabled row sends one overdue email per day at that time.
 4. Configure the **Open Task Notification (Daily)** section:
    - Check **Enable Open Task Notification** to activate.
    - **Send Time**: set the exact time for the daily report (e.g. `09:00:00` for 9:00 AM).
@@ -66,7 +66,7 @@ The app hooks into the Frappe background scheduler. Both functions run every min
 | Event / Cron | Function | Description |
 | :--- | :--- | :--- |
 | `* * * * *` (Every minute) | `send_daily_todo_report` | Checks if the configured daily send time has arrived; sends once per day. |
-| `* * * * *` (Every minute) | `send_overdue_todo_report` | Checks fixed send time and repeat interval; sends when either is due. |
+| `* * * * *` (Every minute) | `send_overdue_todo_report` | Checks the fixed send time and every enabled schedule row; sends when any of them is due. |
 
 ---
 
