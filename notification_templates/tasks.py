@@ -1,5 +1,4 @@
 import frappe
-import json
 from datetime import timedelta
 from frappe import _
 
@@ -339,7 +338,7 @@ def send_daily_todo_report():
 
 
 def send_overdue_todo_report():
-	"""Send overdue alerts across the configured start/end window and fixed daily time."""
+	"""Send overdue alerts at the configured daily time and at every enabled child table slot."""
 	if frappe.flags.in_test:
 		return
 
@@ -348,7 +347,6 @@ def send_overdue_todo_report():
 
 	now = frappe.utils.now_datetime()
 	today = frappe.utils.getdate(now)
-	just_sent_fixed = False
 
 	send_time = frappe.db.get_single_value("Custom Notification Templates", "overdue_send_time")
 	if send_time:
@@ -371,10 +369,6 @@ def send_overdue_todo_report():
 				send_now=True,
 			)
 			frappe.db.set_single_value("Custom Notification Templates", "overdue_time_last_run", now, update_modified=False)
-			just_sent_fixed = True
-
-	# Process scheduled window (intervals) as well if configured
-	_process_overdue_schedule(now, just_sent_fixed=just_sent_fixed)
 
 	# Child table based scheduling
 	overdue_schedules = frappe.get_all(
@@ -429,160 +423,6 @@ def send_overdue_todo_report():
 		frappe.db.set_value("Overdue Notification Schedule", schedule.name, "last_run", now)
 
 
-def _process_overdue_schedule(now, just_sent_fixed=False):
-	"""Check and send scheduled overdue emails based on time window."""
-	today = frappe.utils.getdate(now)
-	start_time = frappe.db.get_single_value("Custom Notification Templates", "overdue_start_time")
-	end_time = frappe.db.get_single_value("Custom Notification Templates", "overdue_end_time")
-	num_mails = frappe.db.get_single_value("Custom Notification Templates", "overdue_num_mails")
-
-	if not start_time or not end_time or not num_mails or int(num_mails) < 2:
-		return False
-
-	start_seconds = _time_to_seconds(start_time)
-	end_seconds = _time_to_seconds(end_time)
-	if start_seconds >= end_seconds:
-		return False
-
-	current_time_str = now.strftime("%H:%M:%S")
-	current_seconds = _time_to_seconds(current_time_str)
-
-	raw_schedule = frappe.db.get_single_value("Custom Notification Templates", "overdue_schedule")
-	schedule = None
-	if raw_schedule:
-		try:
-			schedule = json.loads(raw_schedule)
-		except (json.JSONDecodeError, TypeError):
-			schedule = None
-
-	if schedule and schedule.get("date") == str(today):
-		config_changed = (
-			schedule.get("start_time") != str(start_time)
-			or schedule.get("end_time") != str(end_time)
-			or schedule.get("num_mails") != int(num_mails)
-		)
-		if not config_changed:
-			# Fix 1: Schedule Completion Check.
-			# If today's schedule is already completed or all slots were sent, do NOT send any more emails.
-			if schedule.get("completed") or all(s.get("sent") for s in schedule.get("slots", [])):
-				return False
-		else:
-			schedule = None
-	else:
-		schedule = None
-
-	if not schedule:
-		# Fix 2: Current Time vs End Time Check.
-		# If current time is already at or past end_time, do not generate schedule for today
-		# so past slots are not blasted retroactively.
-		if current_seconds >= end_seconds:
-			return False
-
-		interval = (end_seconds - start_seconds) / (int(num_mails) - 1)
-		schedule = {
-			"date": str(today),
-			"start_time": str(start_time),
-			"end_time": str(end_time),
-			"num_mails": int(num_mails),
-			"completed": False,
-			"slots": [
-				{"time": _seconds_to_time(start_seconds + (index * interval)), "sent": False}
-				for index in range(int(num_mails))
-			],
-		}
-		frappe.db.set_single_value(
-			"Custom Notification Templates", "overdue_schedule", json.dumps(schedule), update_modified=False
-		)
-		frappe.db.set_single_value("Custom Notification Templates", "overdue_schedule_active", 1, update_modified=False)
-
-	slots = schedule.get("slots", [])
-	updated = False
-	for slot in slots:
-		if slot.get("sent"):
-			continue
-		slot_seconds = _time_to_seconds(slot.get("time", ""))
-		if slot_seconds <= current_seconds:
-			if just_sent_fixed:
-				# Fixed overdue alert was already sent in this exact execution,
-				# mark this slot as sent so a duplicate email is not sent in the same minute.
-				slot["sent"] = True
-				updated = True
-				break
-
-			todos = _get_overdue_todos(today)
-			_send_to_users(
-				_group_todos_by_user(todos),
-				"todo",
-				"Overdue & Open Tasks Alert",
-				"Overdue & Open Tasks Alert",
-				"#fff3f3",
-				send_now=True,
-			)
-			slot["sent"] = True
-			updated = True
-			break
-
-	if updated:
-		all_sent = all(s.get("sent") for s in slots)
-		if all_sent:
-			# Fix 1: Mark schedule as completed for today, keep record, do NOT deactivate/delete
-			schedule["completed"] = True
-			frappe.db.set_single_value(
-				"Custom Notification Templates",
-				"overdue_last_run",
-				now,
-				update_modified=False,
-			)
-		frappe.db.set_single_value(
-			"Custom Notification Templates",
-			"overdue_schedule",
-			json.dumps(schedule),
-			update_modified=False,
-		)
-		return True
-
-	return True
-
-
-@frappe.whitelist()
-def create_overdue_schedule(start_time, end_time, num_mails):
-	"""Create a schedule to send overdue emails at equal intervals."""
-	frappe.only_for("System Manager")
-	num_mails = int(num_mails)
-	if num_mails < 2:
-		frappe.throw(_("Number of mails must be at least 2"))
-
-	start_seconds = _time_to_seconds(start_time)
-	end_seconds = _time_to_seconds(end_time)
-
-	if start_seconds >= end_seconds:
-		frappe.throw(_("Start time must be before end time"))
-
-	interval = (end_seconds - start_seconds) / (num_mails - 1)
-
-	slots = []
-	for i in range(num_mails):
-		slot_seconds = start_seconds + (i * interval)
-		slot_time = _seconds_to_time(slot_seconds)
-		slots.append({"time": slot_time, "sent": False})
-
-	today = frappe.utils.getdate(frappe.utils.now_datetime())
-	schedule = {
-		"date": str(today),
-		"start_time": str(start_time),
-		"end_time": str(end_time),
-		"num_mails": num_mails,
-		"completed": False,
-		"slots": slots,
-	}
-	frappe.db.set_single_value(
-		"Custom Notification Templates", "overdue_schedule", json.dumps(schedule), update_modified=False
-	)
-	frappe.db.set_single_value("Custom Notification Templates", "overdue_schedule_active", 1, update_modified=False)
-
-	return _("Schedule created! {0} emails will be sent at equal intervals from {1} to {2}").format(
-		num_mails, start_time, end_time
-	)
 
 
 
