@@ -34,50 +34,6 @@ def _get_target_time(now, time_value):
 	return now.replace(hour=hour, minute=minute, second=second, microsecond=0)
 
 
-def _time_to_minutes(time_str):
-	"""Convert time string HH:MM:SS or HH:MM to total minutes from midnight."""
-	hours, minutes, _ = _get_time_parts(time_str)
-	return hours * 60 + minutes
-
-
-def _minutes_to_time(total_minutes):
-	"""Convert total minutes from midnight to HH:MM:SS string."""
-	hours = int(total_minutes // 60)
-	minutes = int(total_minutes % 60)
-	return f"{hours:02d}:{minutes:02d}:00"
-
-
-def _time_to_seconds(value):
-	"""Convert time string, timedelta, or time object to total seconds from midnight."""
-	if not value:
-		return 0
-
-	if isinstance(value, timedelta):
-		return int(value.total_seconds())
-
-	if hasattr(value, "hour") and hasattr(value, "minute"):
-		return value.hour * 3600 + value.minute * 60 + getattr(value, "second", 0)
-
-	try:
-		parts = str(value).strip().split(":")
-		hours = int(parts[0])
-		minutes = int(parts[1]) if len(parts) > 1 else 0
-		seconds = int(float(parts[2])) if len(parts) > 2 else 0
-		return hours * 3600 + minutes * 60 + seconds
-	except Exception:
-		return 0
-
-
-def _seconds_to_time(total_seconds):
-	"""Convert total seconds from midnight to HH:MM:SS string."""
-	total_seconds = int(round(total_seconds))
-	hours = (total_seconds // 3600) % 24
-	remainder = total_seconds % 3600
-	minutes = remainder // 60
-	seconds = remainder % 60
-	return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
-
-
 def _get_todo_fields():
 	return [
 		"name",
