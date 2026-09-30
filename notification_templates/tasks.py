@@ -34,6 +34,20 @@ def _get_target_time(now, time_value):
 	return now.replace(hour=hour, minute=minute, second=second, microsecond=0)
 
 
+def _log_job_failure(method_name):
+	"""Record a scheduler failure so breakage can never be silent again.
+
+	The cron runner (``scheduled_job_type.run_scheduled_job``) swallows exceptions and only
+	calls ``log_status("Failed")``, and these jobs run with ``create_log=0``, so an unlogged
+	crash leaves no trace in ``tabError Log`` or ``tabScheduled Job Log`` and the mails simply
+	stop. Roll back the partial work first so the Error Log row survives the runner's own
+	rollback.
+	"""
+	frappe.db.rollback()
+	frappe.log_error(title=method_name)
+	frappe.logger("notification_templates").error(f"Scheduled job failed: {method_name}", exc_info=True)
+
+
 def _get_todo_fields():
 	return [
 		"name",
@@ -256,10 +270,18 @@ def _send_to_users(todos_by_user, template, subject, title, color, send_now=Fals
 
 
 def send_daily_todo_report():
-	"""Send email to each user for tasks due today, once daily at the configured time."""
+	"""Scheduler entry point for the daily open task digest."""
 	if frappe.flags.in_test:
 		return
 
+	try:
+		_send_daily_todo_report()
+	except Exception:
+		_log_job_failure("notification_templates.tasks.send_daily_todo_report")
+
+
+def _send_daily_todo_report():
+	"""Send email to each user for tasks due today, once daily at the configured time."""
 	if not frappe.db.get_single_value("Custom Notification Templates", "enable_open_task_notification"):
 		return
 
@@ -294,10 +316,18 @@ def send_daily_todo_report():
 
 
 def send_overdue_todo_report():
-	"""Send overdue alerts at the configured daily time and at every enabled child table slot."""
+	"""Scheduler entry point for the overdue alerts."""
 	if frappe.flags.in_test:
 		return
 
+	try:
+		_send_overdue_todo_report()
+	except Exception:
+		_log_job_failure("notification_templates.tasks.send_overdue_todo_report")
+
+
+def _send_overdue_todo_report():
+	"""Send overdue alerts at the configured daily time and at every enabled child table slot."""
 	if not frappe.db.get_single_value("Custom Notification Templates", "enable_overdue_notification"):
 		return
 
