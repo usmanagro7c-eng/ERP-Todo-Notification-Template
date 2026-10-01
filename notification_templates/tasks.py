@@ -196,7 +196,7 @@ def _get_overdue_todos(today):
 	return _get_daily_todos(today)
 
 
-def _send_to_users(todos_by_user, template, subject, title, color, send_now=False, send_after=None):
+def _send_to_users(todos_by_user, template, subject, title, color, send_now=False):
 	if not todos_by_user:
 		return False
 
@@ -254,8 +254,7 @@ def _send_to_users(todos_by_user, template, subject, title, color, send_now=Fals
 			recipients=[email],
 			subject=_(user_subject),
 			template=template,
-			delayed=True if send_after else not send_now,
-			send_after=send_after,
+			delayed=not send_now,
 			raw_html=True,
 			args={
 				"todo_list": user_todos,
@@ -303,7 +302,7 @@ def _send_daily_todo_report():
 		return
 
 	todos = _get_daily_todos(today)
-	_send_to_users(
+	sent = _send_to_users(
 		_group_todos_by_user(todos),
 		"todo",
 		"Daily TODO Report",
@@ -312,7 +311,8 @@ def _send_daily_todo_report():
 		send_now=True,
 	)
 
-	frappe.db.set_single_value("Custom Notification Templates", "open_task_last_run", now, update_modified=False)
+	if sent:
+		frappe.db.set_single_value("Custom Notification Templates", "open_task_last_run", now, update_modified=False)
 
 
 def send_overdue_todo_report():
@@ -346,7 +346,7 @@ def _send_overdue_todo_report():
 
 		if now >= target and not already_sent_today:
 			todos = _get_overdue_todos(today)
-			_send_to_users(
+			sent = _send_to_users(
 				_group_todos_by_user(todos),
 				"todo",
 				"Overdue & Open Tasks Alert",
@@ -354,13 +354,17 @@ def _send_overdue_todo_report():
 				"#fff3f3",
 				send_now=True,
 			)
-			frappe.db.set_single_value("Custom Notification Templates", "overdue_time_last_run", now, update_modified=False)
+			if sent:
+				frappe.db.set_single_value(
+					"Custom Notification Templates", "overdue_time_last_run", now, update_modified=False
+				)
 
 	# Child table based scheduling
 	overdue_schedules = frappe.get_all(
 		"Overdue Notification Schedule",
 		filters={"parent": "Custom Notification Templates", "enable": 1},
-		fields=["name", "time", "last_run", "queued_date"],
+		fields=["name", "time", "last_run"],
+		order_by="idx asc",
 	)
 
 	for schedule in overdue_schedules:
@@ -375,28 +379,15 @@ def _send_overdue_todo_report():
 			if frappe.utils.getdate(last_run) == today and last_run >= target:
 				continue
 
-		# Not yet at scheduled time? Queue delayed email if not already queued
+		# Slot time has not arrived yet. The cron ticks every minute, so there is
+		# nothing to queue here - scheduling a future Email Queue row would keep
+		# sending even after the row's time has been changed in the settings.
 		if now < target:
-			if schedule.get("queued_date") != str(today):
-				todos = _get_overdue_todos(today)
-				_send_to_users(
-					_group_todos_by_user(todos),
-					"todo",
-					"Overdue & Open Tasks Alert",
-					"Overdue & Open Tasks Alert",
-					"#fff3f3",
-					send_after=target,
-				)
-				frappe.db.set_value(
-					"Overdue Notification Schedule",
-					schedule.name,
-					{"queued_date": today, "last_run": target},
-				)
 			continue
 
-		# Time has passed and not yet sent - send immediately
+		# Slot time has arrived and this slot has not run yet today
 		todos = _get_overdue_todos(today)
-		_send_to_users(
+		sent = _send_to_users(
 			_group_todos_by_user(todos),
 			"todo",
 			"Overdue & Open Tasks Alert",
@@ -405,11 +396,10 @@ def _send_overdue_todo_report():
 			send_now=True,
 		)
 
-		# Update last_run
-		frappe.db.set_value("Overdue Notification Schedule", schedule.name, "last_run", now)
-
-
-
+		# Only stamp last_run when a mail actually went out, otherwise the slot is
+		# silently skipped for the rest of the day.
+		if sent:
+			frappe.db.set_value("Overdue Notification Schedule", schedule.name, "last_run", now)
 
 
 @frappe.whitelist()
