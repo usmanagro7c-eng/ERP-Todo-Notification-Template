@@ -68,6 +68,11 @@ The app hooks into the Frappe background scheduler. Both functions run every min
 | `* * * * *` (Every minute) | `send_daily_todo_report` | Checks if the configured daily send time has arrived; sends once per day. |
 | `* * * * *` (Every minute) | `send_overdue_todo_report` | Checks the fixed send time and every enabled schedule row; sends when any of them is due. |
 
+Each trigger is sent by the scheduler tick that notices it has come due, so a mail
+goes out within a minute of its configured time. Nothing is pre-scheduled into the
+Email Queue, which means editing a time in the settings takes effect on the next
+tick and can never leave a stale mail queued behind.
+
 ---
 
 ## Development & Contributing
