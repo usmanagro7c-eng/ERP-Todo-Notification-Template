@@ -2,8 +2,6 @@ import frappe
 from datetime import timedelta
 from frappe import _
 
-DEFAULT_DAILY_TIME = "09:00:00"
-
 
 def _get_time_parts(value):
 	if not value:
@@ -298,7 +296,13 @@ def _send_daily_todo_report():
 	now = frappe.utils.now_datetime()
 	today = frappe.utils.getdate(now)
 
-	send_time = frappe.db.get_single_value("Custom Notification Templates", "open_task_send_time") or DEFAULT_DAILY_TIME
+	send_time = frappe.db.get_single_value("Custom Notification Templates", "open_task_send_time")
+	if not send_time:
+		# An empty time disables this trigger, same as the overdue send time. Falling
+		# back to a default here used to fire the report the moment the field was
+		# cleared, because the default 09:00 had usually already passed that day.
+		return
+
 	target = _get_target_time(now, send_time)
 
 	# Already sent today after the target time? Skip.

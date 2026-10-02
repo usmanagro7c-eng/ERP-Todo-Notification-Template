@@ -505,3 +505,42 @@ class TestSkippedForToday(IntegrationTestCase):
 			getdate(frappe.db.get_single_value(DOCTYPE, "overdue_time_skipped_date")), getdate()
 		)
 		self.assertEqual(self._run_scheduler(ticks=3).call_count, 0)
+
+
+class TestOpenTaskDailyTime(IntegrationTestCase):
+	"""Clearing the open task send time must switch it off, not fall back to a default."""
+
+	def setUp(self):
+		super().setUp()
+		self.settings = frappe.get_single(DOCTYPE)
+		self.settings.enable_open_task_notification = 1
+		self.settings.open_task_send_time = None
+		self.settings.open_task_last_run = None
+		self.settings.open_task_skipped_date = None
+		self.settings.save(ignore_permissions=True)
+
+	def _run_daily_scheduler(self, ticks=1):
+		with patch.object(tasks, "_send_to_users", return_value=True) as mock_send:
+			for _ in range(ticks):
+				tasks._send_daily_todo_report()
+		return mock_send
+
+	def test_empty_send_time_disables_the_daily_report(self):
+		"""Regression: an empty time used to fall back to 09:00 and fire at once."""
+		self.assertEqual(self._run_daily_scheduler().call_count, 0)
+		self.assertEqual(self._run_daily_scheduler(ticks=5).call_count, 0)
+
+	def test_configured_send_time_still_fires(self):
+		self.settings.open_task_send_time = (now_datetime() - timedelta(minutes=1)).strftime("%H:%M:%S")
+		self.settings.save(ignore_permissions=True)
+		# configured before its time, so not skipped for today
+		frappe.db.set_single_value(DOCTYPE, "open_task_skipped_date", None)
+
+		self.assertEqual(self._run_daily_scheduler().call_count, 1)
+
+	def test_disabled_notification_sends_nothing(self):
+		self.settings.enable_open_task_notification = 0
+		self.settings.open_task_send_time = (now_datetime() - timedelta(minutes=1)).strftime("%H:%M:%S")
+		self.settings.save(ignore_permissions=True)
+
+		self.assertEqual(self._run_daily_scheduler().call_count, 0)
