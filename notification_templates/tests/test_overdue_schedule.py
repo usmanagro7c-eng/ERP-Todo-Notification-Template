@@ -45,8 +45,31 @@ class TestOverdueScheduleSlots(IntegrationTestCase):
 		self.settings.save(ignore_permissions=True)
 		return row.name
 
+	def _add_due_slot(self, slot_time, enable=1):
+		"""Add a slot whose time has passed but that was configured *before* its time.
+
+		       That is the normal case: the row was added in advance and the cron tick
+		that should have run it simply has not happened yet. Saving a slot whose time
+		is already in the past would instead mark it skipped, see
+		       :meth:`_add_slot` and ``test_slot_configured_in_the_past_is_skipped_today``.
+		"""
+		name = self._add_slot(slot_time, enable)
+		self._clear_skipped()
+		return name
+
+	def _clear_skipped(self):
+		"""Un-mark every slot as skipped for today.
+
+		Saving the form re-evaluates all rows, so a slot that should behave as if
+		it had been configured before its time has to be cleared after the last save.
+		"""
+		for row in frappe.get_all(SCHEDULE, filters={"parent": DOCTYPE}, fields="name"):
+			frappe.db.set_value(SCHEDULE, row.name, "skipped_date", None)
+
 	def _get_slot(self, name):
-		return frappe.db.get_value(SCHEDULE, name, ["name", "time", "last_run", "queued_date"], as_dict=True)
+		return frappe.db.get_value(
+			SCHEDULE, name, ["name", "time", "last_run", "queued_date", "skipped_date"], as_dict=True
+		)
 
 	def _run_scheduler(self, sent=True, ticks=1):
 		"""Run the scheduler entry point with the actual mail sending mocked out."""
@@ -92,7 +115,7 @@ class TestOverdueScheduleSlots(IntegrationTestCase):
 		self.assertEqual(frappe.db.count("Email Queue"), queued_before)
 
 	def test_reached_slot_sends_immediately_and_is_never_scheduled(self):
-		self._add_slot("00:01:00")
+		self._add_due_slot("00:01:00")
 		queued_before = frappe.db.count("Email Queue")
 
 		sent = self._run_scheduler_for_real()
@@ -103,7 +126,7 @@ class TestOverdueScheduleSlots(IntegrationTestCase):
 		self.assertEqual(frappe.db.count("Email Queue"), queued_before)
 
 	def test_slot_sends_once_when_its_time_has_passed(self):
-		slot = self._add_slot(self._time_a_minute_ago())
+		slot = self._add_due_slot(self._time_a_minute_ago())
 
 		self.assertEqual(self._run_scheduler().call_count, 1)
 
@@ -112,35 +135,38 @@ class TestOverdueScheduleSlots(IntegrationTestCase):
 		self.assertEqual(getdate(last_run), getdate())
 
 	def test_slot_does_not_send_twice_on_the_same_day(self):
-		self._add_slot("00:01:00")
+		self._add_due_slot("00:01:00")
 
 		self.assertEqual(self._run_scheduler(ticks=2).call_count, 1)
 
 	def test_disabled_slot_is_ignored(self):
-		self._add_slot("00:01:00", enable=0)
+		self._add_due_slot("00:01:00", enable=0)
 
 		self.assertEqual(self._run_scheduler().call_count, 0)
 
 	def test_last_run_is_not_stamped_when_nothing_was_sent(self):
-		slot = self._add_slot("00:01:00")
+		slot = self._add_due_slot("00:01:00")
 
 		self.assertEqual(self._run_scheduler(sent=False).call_count, 1)
 		self.assertIsNone(self._get_slot(slot).last_run)
 
 	def test_moving_a_slot_time_rearms_it_for_today(self):
-		slot = self._add_slot("00:02:00")
+		slot = self._add_due_slot("00:02:00")
 		self._run_scheduler()
 		self.assertTrue(self._get_slot(slot).last_run)
 
-		self.settings.get("overdue_schedules")[0].time = "00:03:00"
+		# move it to a time that has not been reached yet
+		future = (now_datetime() + timedelta(minutes=30)).strftime("%H:%M:%S")
+		self.settings.get("overdue_schedules")[0].time = future
 		self.settings.save(ignore_permissions=True)
 
 		self.assertIsNone(self._get_slot(slot).last_run)
-		self.assertEqual(self._run_scheduler().call_count, 1)
+		self.assertIsNone(self._get_slot(slot).skipped_date)
+		self.assertEqual(self._run_scheduler().call_count, 0)
 
 	def test_saving_without_a_time_change_keeps_the_stored_last_run(self):
 		"""A browser form posts stale hidden values, they must not wipe the stamp."""
-		slot = self._add_slot("00:01:00")
+		slot = self._add_due_slot("00:01:00")
 		self._run_scheduler()
 		stamped = self._get_slot(slot).last_run
 
@@ -153,24 +179,28 @@ class TestOverdueScheduleSlots(IntegrationTestCase):
 		self.assertEqual(self._run_scheduler().call_count, 0)
 
 	def test_changing_the_daily_send_time_rearms_it_for_today(self):
-		self.settings.overdue_send_time = "00:01:00"
-		self.settings.save(ignore_permissions=True)
+		self._set_daily_overdue_time("00:01:00")
 		self.assertEqual(self._run_scheduler().call_count, 1)
 		self.assertEqual(getdate(frappe.db.get_single_value(DOCTYPE, "overdue_time_last_run")), getdate())
 
 		self.settings.reload()
-		self.settings.overdue_send_time = "00:02:00"
-		self.settings.save(ignore_permissions=True)
+		self._set_daily_overdue_time("00:02:00")
 
 		# a NULL Datetime reads back as 0001-01-01, so assert on the day instead
 		last_run = frappe.db.get_single_value(DOCTYPE, "overdue_time_last_run")
 		self.assertNotEqual(getdate(last_run), getdate())
 		self.assertEqual(self._run_scheduler(ticks=2).call_count, 1)
 
+	def _set_daily_overdue_time(self, send_time):
+		"""Set the fixed overdue time as if it had been configured before it was due."""
+		self.settings.overdue_send_time = send_time
+		self.settings.save(ignore_permissions=True)
+		frappe.db.set_single_value(DOCTYPE, "overdue_time_skipped_date", None)
+
 	def test_each_slot_keeps_its_own_bookkeeping(self):
 		"""One slot having run must not suppress the others."""
-		self._add_slot("00:01:00")
-		second = self._add_slot(self._time_a_minute_ago())
+		self._add_due_slot("00:01:00")
+		second = self._add_due_slot(self._time_a_minute_ago())
 
 		self.assertEqual(self._run_scheduler().call_count, 2)
 		self.assertTrue(self._get_slot(second).last_run)
@@ -242,6 +272,20 @@ class TestOverdueSlotMailFreshness(IntegrationTestCase):
 		self.settings.save(ignore_permissions=True)
 		return row.name
 
+	def _add_due_slot(self, slot_time):
+		"""Add a slot whose time has passed but that was configured before its time.
+
+		Saving a slot whose time is already in the past marks it skipped for today,
+		which would hide the freshness behaviour these tests are about.
+		"""
+		name = self._add_slot(slot_time)
+		self._clear_skipped()
+		return name
+
+	def _clear_skipped(self):
+		for row in frappe.get_all(SCHEDULE, filters={"parent": DOCTYPE}, fields="name"):
+			frappe.db.set_value(SCHEDULE, row.name, "skipped_date", None)
+
 	def _rendered_mails(self):
 		"""Run the scheduler for real and return every mail it handed to sendmail.
 
@@ -266,7 +310,7 @@ class TestOverdueSlotMailFreshness(IntegrationTestCase):
 		return [mail for mail in self._my_mails() if todo_name in self._my_todo_names(mail)]
 
 	def test_completed_task_drops_out_of_the_next_slot_mail(self):
-		self._add_slot("00:01:00")
+		self._add_due_slot("00:01:00")
 
 		self.assertEqual(len(self._mails_carrying(self.todo.name)), 1)
 
@@ -275,20 +319,20 @@ class TestOverdueSlotMailFreshness(IntegrationTestCase):
 		self.todo.status = "Closed"
 		self.todo.save(ignore_permissions=True)
 
-		self._add_slot("00:02:00")
+		self._add_due_slot("00:02:00")
 
 		# no later mail may mention it, whether or not a mail is sent at all
 		self.assertEqual(self._mails_carrying(self.todo.name), [])
 
 	def test_unassigned_task_drops_out_of_the_next_slot_mail(self):
-		self._add_slot("00:01:00")
+		self._add_due_slot("00:01:00")
 		self.assertEqual(len(self._mails_carrying(self.todo.name)), 1)
 
 		self.todo.reload()
 		self.todo.allocated_to = None
 		self.todo.save(ignore_permissions=True)
 
-		self._add_slot("00:02:00")
+		self._add_due_slot("00:02:00")
 		self.assertEqual(self._mails_carrying(self.todo.name), [])
 
 	def test_task_newly_overdue_appears_in_the_later_slot_mail(self):
@@ -298,18 +342,18 @@ class TestOverdueSlotMailFreshness(IntegrationTestCase):
 		self.todo.date = add_days(getdate(), 5)
 		self.todo.save(ignore_permissions=True)
 
-		self._add_slot("00:01:00")
+		self._add_due_slot("00:01:00")
 		self.assertEqual(self._mails_carrying(self.todo.name), [])
 
 		self.todo.reload()
 		self.todo.date = getdate()
 		self.todo.save(ignore_permissions=True)
 
-		self._add_slot("00:02:00")
+		self._add_due_slot("00:02:00")
 		self.assertEqual(len(self._mails_carrying(self.todo.name)), 1)
 
 	def test_slot_mail_is_rendered_not_scheduled(self):
-		self._add_slot("00:01:00")
+		self._add_due_slot("00:01:00")
 
 		sent_after = now_datetime()
 		mail = self._my_mails()[0]
@@ -331,8 +375,9 @@ class TestOverdueSlotMailFreshness(IntegrationTestCase):
 		"""
 		first_due = (now_datetime() - timedelta(minutes=2)).time()
 		second_due = (now_datetime() + timedelta(minutes=10)).time()
-		self._add_slot(first_due)
+		self._add_due_slot(first_due)
 		self._add_slot(second_due)
+		self._clear_skipped()
 
 		mails = self._my_mails()
 		self.assertEqual(len(mails), 1)
@@ -347,3 +392,116 @@ class TestOverdueSlotMailFreshness(IntegrationTestCase):
 		later = now_datetime() + timedelta(minutes=11)
 		with patch.object(frappe.utils, "now_datetime", return_value=later):
 			self.assertEqual(self._mails_carrying(self.todo.name), [])
+
+
+class TestSkippedForToday(IntegrationTestCase):
+	"""A trigger whose time has already passed is skipped for the day.
+
+	Setting times in the past used to fire a burst of catch-up mails the moment
+	the form was saved. The settings form now marks such a trigger as skipped so
+	it only starts running from tomorrow, while a trigger that was configured
+	in advance still fires, including as a catch-up after downtime.
+	"""
+
+	def setUp(self):
+		super().setUp()
+
+		self.settings = frappe.get_single(DOCTYPE)
+		self.settings.enable_overdue_notification = 1
+		self.settings.overdue_send_time = None
+		self.settings.overdue_time_last_run = None
+		self.settings.open_task_send_time = None
+		self.settings.open_task_last_run = None
+		self.settings.overdue_schedules = []
+		self.settings.save(ignore_permissions=True)
+
+	def _run_scheduler(self, sent=True, ticks=1):
+		with patch.object(tasks, "_send_to_users", return_value=sent) as mock_send:
+			for _ in range(ticks):
+				tasks._send_overdue_todo_report()
+		return mock_send
+
+	def _run_daily_scheduler(self):
+		with patch.object(tasks, "_send_to_users", return_value=True) as mock_send:
+			tasks._send_daily_todo_report()
+		return mock_send
+
+	def _add_slot(self, slot_time):
+		row = self.settings.append("overdue_schedules", {"time": slot_time, "enable": 1})
+		self.settings.save(ignore_permissions=True)
+		return row.name
+
+	def _get_slot(self, name):
+		return frappe.db.get_value(SCHEDULE, name, ["time", "last_run", "skipped_date"], as_dict=True)
+
+	def test_slot_configured_in_the_past_is_skipped_today(self):
+		slot = self._add_slot("00:01:00")
+
+		self.assertEqual(getdate(self._get_slot(slot).skipped_date), getdate())
+		# and it stays quiet no matter how many ticks pass
+		self.assertEqual(self._run_scheduler(ticks=5).call_count, 0)
+		self.assertIsNone(self._get_slot(slot).last_run)
+
+	def test_slot_configured_in_the_future_is_not_skipped(self):
+		future = (now_datetime() + timedelta(minutes=30)).strftime("%H:%M:%S")
+
+		slot = self._add_slot(future)
+
+		self.assertIsNone(self._get_slot(slot).skipped_date)
+
+	def test_slot_skipped_yesterday_fires_again_today(self):
+		"""The skip is only for the day it was configured in."""
+		slot = self._add_slot("00:01:00")
+		self.assertEqual(getdate(self._get_slot(slot).skipped_date), getdate())
+
+		# pretend it was skipped yesterday, and that nothing has run today
+		frappe.db.set_value(SCHEDULE, slot, {"skipped_date": add_days(getdate(), -1), "last_run": None})
+
+		self.assertEqual(self._run_scheduler().call_count, 1)
+		self.assertTrue(self._get_slot(slot).last_run)
+
+	def test_slot_configured_in_advance_still_fires_when_its_time_passes(self):
+		"""A slot added before its time keeps running when the time arrives."""
+		self._add_slot("23:59:00")
+		self.assertEqual(self._run_scheduler(ticks=3).call_count, 0)
+
+		tomorrow = get_datetime(now_datetime()).replace(hour=23, minute=59, second=30, microsecond=0)
+		with patch.object(frappe.utils, "now_datetime", return_value=tomorrow):
+			self.assertEqual(self._run_scheduler().call_count, 1)
+
+	def test_moving_a_slot_to_a_past_time_skips_it_for_today(self):
+		slot = self._add_slot((now_datetime() + timedelta(minutes=30)).strftime("%H:%M:%S"))
+		self.assertIsNone(self._get_slot(slot).skipped_date)
+
+		self.settings.get("overdue_schedules")[0].time = "00:01:00"
+		self.settings.save(ignore_permissions=True)
+
+		self.assertEqual(getdate(self._get_slot(slot).skipped_date), getdate())
+		self.assertEqual(self._run_scheduler(ticks=3).call_count, 0)
+
+	def test_daily_send_time_in_the_past_is_skipped_today(self):
+		self.settings.overdue_send_time = "00:01:00"
+		self.settings.save(ignore_permissions=True)
+
+		self.assertEqual(getdate(frappe.db.get_single_value(DOCTYPE, "overdue_time_skipped_date")), getdate())
+		self.assertEqual(self._run_scheduler(ticks=3).call_count, 0)
+
+	def test_daily_open_task_time_in_the_past_is_skipped_today(self):
+		self.settings.enable_open_task_notification = 1
+		self.settings.open_task_send_time = "00:01:00"
+		self.settings.save(ignore_permissions=True)
+
+		self.assertEqual(getdate(frappe.db.get_single_value(DOCTYPE, "open_task_skipped_date")), getdate())
+		self.assertEqual(self._run_daily_scheduler().call_count, 0)
+
+	def test_daily_send_time_in_the_future_is_not_skipped(self):
+		future = (now_datetime() + timedelta(minutes=30)).strftime("%H:%M:%S")
+
+		self.settings.overdue_send_time = future
+		self.settings.save(ignore_permissions=True)
+
+		# a NULL Date reads back as 0001-01-01, so assert on the day instead
+		self.assertNotEqual(
+			getdate(frappe.db.get_single_value(DOCTYPE, "overdue_time_skipped_date")), getdate()
+		)
+		self.assertEqual(self._run_scheduler(ticks=3).call_count, 0)

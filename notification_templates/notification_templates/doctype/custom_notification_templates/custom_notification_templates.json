@@ -9,11 +9,13 @@
     "overdue_send_time",
     "overdue_schedules",
     "overdue_time_last_run",
+    "overdue_time_skipped_date",
     "section_open_task",
     "enable_open_task_notification",
     "open_task_send_time",
-    "open_task_last_run"
-  ],
+    "open_task_last_run",
+    "open_task_skipped_date"
+   ],
  "fields": [
   {
    "collapsible": 1,
@@ -48,6 +50,13 @@
      "read_only": 1
     },
    {
+     "fieldname": "overdue_time_skipped_date",
+     "fieldtype": "Date",
+     "hidden": 1,
+     "label": "Overdue Send Time Skipped Date",
+     "read_only": 1
+    },
+   {
      "collapsible": 1,
     "fieldname": "section_open_task",
     "fieldtype": "Section Break",
@@ -66,14 +75,21 @@
     "in_list_view": 1,
     "label": "Send Time"
    },
-   {
-    "fieldname": "open_task_last_run",
-    "fieldtype": "Datetime",
-    "hidden": 1,
-    "label": "Open Task Last Run",
-    "read_only": 1
-   }
- ],
+    {
+     "fieldname": "open_task_last_run",
+     "fieldtype": "Datetime",
+     "hidden": 1,
+     "label": "Open Task Last Run",
+     "read_only": 1
+    },
+    {
+     "fieldname": "open_task_skipped_date",
+     "fieldtype": "Date",
+     "hidden": 1,
+     "label": "Open Task Skipped Date",
+     "read_only": 1
+    }
+   ],
  "issingle": 1,
  "links": [],
  "modified": "2026-08-31 00:00:00.000000",

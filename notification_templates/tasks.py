@@ -34,6 +34,17 @@ def _get_target_time(now, time_value):
 	return now.replace(hour=hour, minute=minute, second=second, microsecond=0)
 
 
+def _is_skipped_for_today(skipped_date, today):
+	"""True if this trigger's time was already past when it was configured.
+
+	The settings form marks such a trigger as skipped for the day instead of
+	firing a burst of catch-up mails, so it only starts running from tomorrow.
+	"""
+	if not skipped_date:
+		return False
+	return frappe.utils.getdate(skipped_date) == today
+
+
 def _log_job_failure(method_name):
 	"""Record a scheduler failure so breakage can never be silent again.
 
@@ -297,6 +308,12 @@ def _send_daily_todo_report():
 		if frappe.utils.getdate(last_run) == today and last_run >= target:
 			return
 
+	# Time was already past when it was configured, so today is skipped.
+	if _is_skipped_for_today(
+		frappe.db.get_single_value("Custom Notification Templates", "open_task_skipped_date"), today
+	):
+		return
+
 	# Not yet at the configured time? Skip.
 	if now < target:
 		return
@@ -344,7 +361,11 @@ def _send_overdue_todo_report():
 		else:
 			already_sent_today = False
 
-		if now >= target and not already_sent_today:
+		skipped_today = _is_skipped_for_today(
+			frappe.db.get_single_value("Custom Notification Templates", "overdue_time_skipped_date"), today
+		)
+
+		if now >= target and not already_sent_today and not skipped_today:
 			todos = _get_overdue_todos(today)
 			sent = _send_to_users(
 				_group_todos_by_user(todos),
@@ -363,7 +384,7 @@ def _send_overdue_todo_report():
 	overdue_schedules = frappe.get_all(
 		"Overdue Notification Schedule",
 		filters={"parent": "Custom Notification Templates", "enable": 1},
-		fields=["name", "time", "last_run"],
+		fields=["name", "time", "last_run", "skipped_date"],
 		order_by="idx asc",
 	)
 
@@ -378,6 +399,10 @@ def _send_overdue_todo_report():
 			last_run = frappe.utils.get_datetime(schedule.last_run)
 			if frappe.utils.getdate(last_run) == today and last_run >= target:
 				continue
+
+		# Time was already past when it was configured, so today is skipped.
+		if _is_skipped_for_today(schedule.get("skipped_date"), today):
+			continue
 
 		# Slot time has not arrived yet. The cron ticks every minute, so there is
 		# nothing to queue here - scheduling a future Email Queue row would keep
